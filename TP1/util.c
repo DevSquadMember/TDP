@@ -43,6 +43,16 @@ double* d_matrix_create(int n, int m) {
   return (double*) calloc(n * m, sizeof(double));
 }
 
+void d_matrix_fill(double* matrix, int n, int m, double value) {
+  int i, j, col;
+  for (j = 0 ; j < n ; j++) {
+    col = j*m;
+    for (i = 0 ; i < m ; i++) {
+      matrix[col + i] = value;
+    }
+  }
+}
+
 /* Libérer la matrice */
 void s_matrix_free(int* matrix) {
   free(matrix);

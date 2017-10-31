@@ -17,6 +17,8 @@ int* s_matrix_create(int n, int m);
 
 double* d_matrix_create(int n, int m);
 
+void d_matrix_fill(double* matrix, int n, int m, double value);
+
 void s_matrix_free(int* matrix);
 
 void d_matrix_free(double* matrix);
