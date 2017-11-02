@@ -22,12 +22,11 @@
  *               * ldc : décalage entre chaque ligne de C
  *                *
  *                 * TransA :
- *                  * - CblasNoTrans = (i, j, k) --> (5 * size + 5) * size * size
- *                   * - CblasTrans = (k, i, j) --> size * size * (1 + 6 * size)
- *                    size * [(size - 1) * (6 * size + 2) + (5 * size + 2)]
- *                     * - CblasConjTrans = (j, i, k) --> ((5 * size + 1)*size + 2) * size
- *                      */
-void cblas_dgemm_scalar(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE TransA, const enum CBLAS_TRANSPOSE TransB, const int M, const int N, const int K, const double alpha, const double *A, const int lda, const double *B, const int ldb, const double beta, double *C, const int ldc) {
+ *                  * - CblasNoTrans = (i, j, k) --> size * size * size * 2
+ *                   * - CblasTrans = (k, i, j) --> size * size * size * 2
+ *                    * - CblasConjTrans = (j, i, k) --> size * size * size * 2
+ *                     */
+void cblas_dgemm_scalaire(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE TransA, const enum CBLAS_TRANSPOSE TransB, const int M, const int N, const int K, const double alpha, const double *A, const int lda, const double *B, const int ldb, const double beta, double *C, const int ldc) {
 	int n, m, k, val, b_pos, a_pos, c_pos;
 	if (TransA == CblasNoTrans) {
 		if (lda == 1) { 
@@ -39,7 +38,11 @@ void cblas_dgemm_scalar(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE
 					for (k = 0 ; k < K ; k++) {
 						val += A[k + m] * B[b_pos + k];
 					} 
-					C[c_pos] = alpha*val+beta;
+					if (alpha == 1) {
+						C[c_pos] = val;
+					} else {
+						C[c_pos] = alpha*val;
+					}
 				}
 			}
 		} else {
@@ -51,12 +54,16 @@ void cblas_dgemm_scalar(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE
 					for (k = 0 ; k < K ; k++) {
 						val += A[k*lda + m] * B[b_pos + k];
 					} 
-					C[c_pos] = alpha*val+beta;
+					if (alpha == 1) {
+						C[c_pos] = val;
+					} else {
+						C[c_pos] = alpha*val;
+					}
 				}
 			}
 		}
 	} else if (TransA == CblasTrans) {
-		if (alpha == 1 && beta == 0) {
+		if (alpha == 1) {
 			for (k = 0 ; k < K ; k++) {
 				for (m = 0 ; m < M ; m++) {
 					a_pos = k*lda + m;
@@ -65,30 +72,12 @@ void cblas_dgemm_scalar(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE
 					} 
 				}
 			}
-		} else if (alpha == 1) {
-			for (k = 0 ; k < K ; k++) {
-				for (m = 0 ; m < M ; m++) {
-					a_pos = k*lda + m;
-					for (n = 0 ; n < N ; n++) {
-						C[n*ldc + m] += A[a_pos] * B[n*ldb + k] + beta;
-					} 
-				}
-			}
-		} else if (beta == 0) {
-			for (k = 0 ; k < K ; k++) {
-				for (m = 0 ; m < M ; m++) {
-					a_pos = k*lda + m;
-					for (n = 0 ; n < N ; n++) {
-						C[n*ldc + m] += alpha*A[a_pos] * B[n*ldb + k];
-					} 
-				}
-			}
 		} else {
 			for (k = 0 ; k < K ; k++) {
 				for (m = 0 ; m < M ; m++) {
 					a_pos = k*lda + m;
 					for (n = 0 ; n < N ; n++) {
-						C[n*ldc + m] += alpha*(A[a_pos] * B[n*ldb + k]) + beta;
+						C[n*ldc + m] += alpha*(A[a_pos] * B[n*ldb + k]);
 					} 
 				}
 			}
@@ -101,9 +90,15 @@ void cblas_dgemm_scalar(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE
 				for (m = 0 ; m < M ; m++) {
 					c_pos = a_pos + m;
 					val = C[c_pos];
-					for (k = 0 ; k < K ; k++) {
-						val += alpha * A[k + m] * B[b_pos + k] + beta;
-					} 
+					if (alpha == 1) {
+						for (k = 0 ; k < K ; k++) {
+							val += A[k + m] * B[b_pos + k];
+						} 
+					} else {
+						for (k = 0 ; k < K ; k++) {
+							val += alpha * A[k + m] * B[b_pos + k];
+						} 
+					}
 					C[c_pos] = val;
 				}
 			}
@@ -114,9 +109,15 @@ void cblas_dgemm_scalar(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE
 				for (m = 0 ; m < M ; m++) {
 					c_pos = a_pos + m;
 					val = C[c_pos];
-					for (k = 0 ; k < K ; k++) {
-						val += alpha * A[k*lda + m] * B[b_pos + k] + beta;
-					} 
+					if (alpha == 1) {
+						for (k = 0 ; k < K ; k++) {
+							val += A[k*lda + m] * B[b_pos + k];
+						} 
+					} else {
+						for (k = 0 ; k < K ; k++) {
+							val += alpha * A[k*lda + m] * B[b_pos + k];
+						} 
+					}
 					C[c_pos] = val;
 				}
 			}
@@ -126,7 +127,7 @@ void cblas_dgemm_scalar(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE
 
 void cblas_dgemm_scalar_opti(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE TransA, const enum CBLAS_TRANSPOSE TransB, const int M, const int N, const int K, const double alpha, const double *A, const int lda, const double *B, const int ldb, const double beta, double *C, const int ldc) {
 	int n, m, k, val, b_pos, a_pos, c_pos;
-	if (alpha == 1 && beta == 0) {
+	if (alpha == 1) {
 		for (k = 0 ; k < K ; k++) {
 			for (m = 0 ; m < M ; m++) {
 				a_pos = k*lda + m;
@@ -135,30 +136,12 @@ void cblas_dgemm_scalar_opti(const enum CBLAS_ORDER Order, const enum CBLAS_TRAN
 				} 
 			}
 		}
-	} else if (alpha == 1) {
-		for (k = 0 ; k < K ; k++) {
-			for (m = 0 ; m < M ; m++) {
-				a_pos = k*lda + m;
-				for (n = 0 ; n < N ; n++) {
-					C[n*ldc + m] += A[a_pos] * B[n*ldb + k] + beta;
-				} 
-			}
-		}
-	} else if (beta == 0) {
-		for (k = 0 ; k < K ; k++) {
-			for (m = 0 ; m < M ; m++) {
-				a_pos = k*lda + m;
-				for (n = 0 ; n < N ; n++) {
-					C[n*ldc + m] += alpha*A[a_pos] * B[n*ldb + k];
-				} 
-			}
-		}
 	} else {
 		for (k = 0 ; k < K ; k++) {
 			for (m = 0 ; m < M ; m++) {
 				a_pos = k*lda + m;
 				for (n = 0 ; n < N ; n++) {
-					C[n*ldc + m] += alpha*(A[a_pos] * B[n*ldb + k]) + beta;
+					C[n*ldc + m] += alpha*(A[a_pos] * B[n*ldb + k]);
 				} 
 			}
 		}
@@ -176,6 +159,7 @@ void cblas_dgemm(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE TransA
 	int nb_m_blocks, nb_k_blocks, nb_n_blocks;
 	int m_size, k_size, n_size;
 	int last_m_size, last_k_size, last_n_size;
+	int last_m_block, last_k_block, last_n_block;
 	int a_index, b_index, c_index;
 	nb_m_blocks = ceil(M/BLOC_SIZE);
 	nb_k_blocks = ceil(K/BLOC_SIZE);
@@ -184,19 +168,19 @@ void cblas_dgemm(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE TransA
 	last_k_size = K - BLOC_SIZE*(nb_k_blocks-1);
 	last_n_size = N - BLOC_SIZE*(nb_n_blocks-1);
 
-	/*double* A_block[nb_m_blocks*nb_k_blocks];
- * 	double* B_block[nb_k_blocks*nb_n_blocks];
- * 		double* C_block[nb_m_blocks*nb_n_blocks];*/
+	last_m_block = nb_m_blocks - 1;
+	last_n_block = nb_n_blocks - 1;
+	last_k_block = nb_k_blocks - 1;
 
 	for (j = 0 ; j < nb_n_blocks ; j++) {
-		if (j < nb_n_blocks - 1) {
+		if (j < last_n_block) {
 			n_size = BLOC_SIZE;
 		} else {
 			n_size = last_n_size;
 		}
 		j_pos = j*BLOC_SIZE;
 		for (i = 0 ; i < nb_m_blocks ; i++) {
-			if (i < nb_m_blocks - 1) {
+			if (i < last_m_block) {
 				m_size = BLOC_SIZE;
 			} else {
 				m_size = last_m_size;
@@ -207,7 +191,7 @@ void cblas_dgemm(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE TransA
 				k_pos = k*BLOC_SIZE;
 				a_index = i_pos + k_pos*M;
 				b_index = k_pos + j_pos*K;
-				if (k < nb_k_blocks - 1) {
+				if (k < last_k_block) {	
 					k_size = BLOC_SIZE;
 				} else {
 					k_size = last_k_size;

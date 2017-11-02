@@ -4,14 +4,15 @@
 #include "cblas.h"
 #include "util.h"
 #include "perf.h"
+#include "dgemm_thread.h"
 
 #define MIN 50
-#define MAX 2000
+#define MAX 1400
 #define INNER 100
 #define COEF 1.25
 #define ADD 0
 
-void cblas_dgemm_scalaire(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE TransA, const enum CBLAS_TRANSPOSE TransB, const int M, const int N, const int K, const double alpha, const double *A, const int lda, const double *B, const int ldb, const double beta, double *C, const int ldc) {
+void cblas_dgemm_scalar(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE TransA, const enum CBLAS_TRANSPOSE TransB, const int M, const int N, const int K, const double alpha, const double *A, const int lda, const double *B, const int ldb, const double beta, double *C, const int ldc) {
   int n, m, k, val, b_pos, a_pos, c_pos;
   if (TransA == CblasNoTrans) {
     if (lda == 1) { 
@@ -23,7 +24,11 @@ void cblas_dgemm_scalaire(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPO
           for (k = 0 ; k < K ; k++) {
             val += A[k + m] * B[b_pos + k];
           } 
-          C[c_pos] = alpha*val+beta;
+          if (alpha == 1) {
+            C[c_pos] = val;
+          } else {
+            C[c_pos] = alpha*val;
+          }
         }
       }
     } else {
@@ -35,12 +40,16 @@ void cblas_dgemm_scalaire(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPO
           for (k = 0 ; k < K ; k++) {
             val += A[k*lda + m] * B[b_pos + k];
           } 
-          C[c_pos] = alpha*val+beta;
+          if (alpha == 1) {
+            C[c_pos] = val;
+          } else {
+            C[c_pos] = alpha*val;
+          }
         }
       }
     }
   } else if (TransA == CblasTrans) {
-    if (alpha == 1 && beta == 0) {
+    if (alpha == 1) {
       for (k = 0 ; k < K ; k++) {
         for (m = 0 ; m < M ; m++) {
           a_pos = k*lda + m;
@@ -49,30 +58,12 @@ void cblas_dgemm_scalaire(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPO
           } 
         }
       }
-    } else if (alpha == 1) {
-      for (k = 0 ; k < K ; k++) {
-        for (m = 0 ; m < M ; m++) {
-          a_pos = k*lda + m;
-          for (n = 0 ; n < N ; n++) {
-            C[n*ldc + m] += A[a_pos] * B[n*ldb + k] + beta;
-          } 
-        }
-      }
-    } else if (beta == 0) {
-      for (k = 0 ; k < K ; k++) {
-        for (m = 0 ; m < M ; m++) {
-          a_pos = k*lda + m;
-          for (n = 0 ; n < N ; n++) {
-            C[n*ldc + m] += alpha*A[a_pos] * B[n*ldb + k];
-          } 
-        }
-      }
     } else {
       for (k = 0 ; k < K ; k++) {
         for (m = 0 ; m < M ; m++) {
           a_pos = k*lda + m;
           for (n = 0 ; n < N ; n++) {
-            C[n*ldc + m] += alpha*(A[a_pos] * B[n*ldb + k]) + beta;
+            C[n*ldc + m] += alpha*(A[a_pos] * B[n*ldb + k]);
           } 
         }
       }
@@ -85,9 +76,15 @@ void cblas_dgemm_scalaire(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPO
         for (m = 0 ; m < M ; m++) {
           c_pos = a_pos + m;
           val = C[c_pos];
-          for (k = 0 ; k < K ; k++) {
-            val += alpha * A[k + m] * B[b_pos + k] + beta;
-          } 
+          if (alpha == 1) {
+            for (k = 0 ; k < K ; k++) {
+              val += A[k + m] * B[b_pos + k];
+            } 
+          } else {
+            for (k = 0 ; k < K ; k++) {
+              val += alpha * A[k + m] * B[b_pos + k];
+            } 
+          }
           C[c_pos] = val;
         }
       }
@@ -98,9 +95,15 @@ void cblas_dgemm_scalaire(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPO
         for (m = 0 ; m < M ; m++) {
           c_pos = a_pos + m;
           val = C[c_pos];
-          for (k = 0 ; k < K ; k++) {
-            val += alpha * A[k*lda + m] * B[b_pos + k] + beta;
-          } 
+          if (alpha == 1) {
+            for (k = 0 ; k < K ; k++) {
+              val += A[k*lda + m] * B[b_pos + k];
+            } 
+          } else {
+            for (k = 0 ; k < K ; k++) {
+              val += alpha * A[k*lda + m] * B[b_pos + k];
+            } 
+          }
           C[c_pos] = val;
         }
       }
@@ -137,20 +140,14 @@ long compute_gemm(long size, perf_t* start, perf_t* stop, const enum CBLAS_TRANS
   d_matrix_fill(B, size, size, 5);
 
   perf(start);
-  cblas_dgemm_scalaire(CblasColMajor, trans, CblasNoTrans, size, size, size, 1, A, size, B, size, 0, C, size);
+  cblas_dgemm_scalar(CblasColMajor, trans, CblasNoTrans, size, size, size, 1, A, size, B, size, 0, C, size);
   perf(stop);
 
   d_matrix_free(A);
   d_matrix_free(B);
   d_matrix_free(C);
 
-  if (trans == CblasNoTrans) {
-    return (size * size * (5*size + 5));
-  } else if (trans == CblasTrans) {
-    return (size * size * (6*size + 1));
-  } else {
-    return (size * (2 + size * (7 * size + 1)));
-  }
+  return size * size * size * 2;
 }
 
 long compute_gemm_block(long size, perf_t* start, perf_t* stop) {
@@ -172,15 +169,71 @@ long compute_gemm_block(long size, perf_t* start, perf_t* stop) {
 
   int nb = ceil(1.0*size/100);
   if (size <= 100) {
-    return size*(size*(size*6 + 1));
+    return size * size * size * 2;
   } else {
-    return (((nb*5 + 3)*nb+1)*nb + size*(size*(size*6+1)));
+    return (nb*nb*nb + size * size * size * 2);
   }
+}
+
+long compute_gemm_thread(long size, perf_t* start, perf_t* stop) {
+  double *A = d_matrix_create(size, size);
+  double *B = d_matrix_create(size, size);
+  double *C = d_matrix_create(size, size);
+
+  d_matrix_fill(A, size, size, 2);
+  d_matrix_fill(B, size, size, 5);
+  d_matrix_fill(C, size, size, 0);
+
+  char* num = getenv("MYLIB_NUM_THREADS");
+  int nb_threads;
+  if (num != NULL) {
+    nb_threads = atoi(num);
+  } else {
+    nb_threads = 1;
+  }
+
+  perf(start);
+  cblas_dgemm_thread(CblasColMajor, CblasNoTrans, CblasNoTrans, size, size, size, 1, A, size, B, size, 0, C, size);
+  perf(stop);
+
+  d_matrix_free(A);
+  d_matrix_free(B);
+  d_matrix_free(C);
+
+  return 1.0*(size * size * size * 2)/nb_threads;
+}
+
+long compute_gemm_mkl(long size, perf_t* start, perf_t* stop) {
+  double *A = d_matrix_create(size, size);
+  double *B = d_matrix_create(size, size);
+  double *C = d_matrix_create(size, size);
+
+  d_matrix_fill(A, size, size, 2);
+  d_matrix_fill(B, size, size, 5);
+  d_matrix_fill(C, size, size, 0);
+
+  char* num = getenv("MKL_NUM_THREADS");
+  int nb_threads;
+  if (num != NULL) {
+    nb_threads = atoi(num);
+  } else {
+    nb_threads = 1;
+  }
+
+  perf(start);
+  cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, size, size, size, 1, A, size, B, size, 0, C, size);
+  perf(stop);
+
+  d_matrix_free(A);
+  d_matrix_free(B);
+  d_matrix_free(C);
+
+  return 1.0*(size * size * size * 2)/nb_threads;
 }
 
 int main(int argc, char** argv) {
   perf_t start, stop;
-  double performance, perf1, perf2, perf3;
+  double performance, perf1, perf2, perf3, perf4;
   long flop;
   long size = MIN;
   FILE* file = fopen("res.dot", "w");
@@ -195,7 +248,7 @@ int main(int argc, char** argv) {
  *
  *             printf("Size : %ld - Mflops/s : %lf\n", size, performance);
  *                 fprintf(file, "%ld %lf\n", size, performance);
- *                 */
+ *                     */
     /* GEMM */
 
     /*flop = compute_gemm(size, &start, &stop, CblasNoTrans);
@@ -217,32 +270,57 @@ int main(int argc, char** argv) {
     /* GEMM BLOCK */
     
     /*flop = compute_gemm_block(size, &start, &stop);
+ *      perf_diff(&start, &stop);
+ *           performance = perf_mflops(&stop, flop);
+ *
+ *                printf("Size : %ld - Mflop/s : %lf\n", size, performance);
+ *                     fprintf(file, "%ld %lf\n", size, performance);*/
+
+    /* GEMM VS GEMM BLOCK VS GEMM THREAD */
+
+    /*flop = compute_gemm(size, &start, &stop, CblasNoTrans);
+ *     perf_diff(&start, &stop);
+ *         perf1 = perf_mflops(&stop, flop);
+ *
+ *             flop = compute_gemm(size, &start, &stop, CblasTrans);
+ *                 perf_diff(&start, &stop);
+ *                     perf2 = perf_mflops(&stop, flop);
+ *
+ *                         flop = compute_gemm(size, &start, &stop, CblasConjTrans);
+ *                             perf_diff(&start, &stop);
+ *                                 perf3 = perf_mflops(&stop, flop);
+ *
+ *                                     flop = compute_gemm_block(size, &start, &stop);
+ *                                         perf_diff(&start, &stop);
+ *                                             performance = perf_mflops(&stop, flop);
+ *
+ *                                                 flop = compute_gemm_thread(size, &start, &stop);
+ *                                                     perf_diff(&start, &stop);
+ *                                                         perf4 = perf_mflops(&stop, flop);
+ *
+ *                                                             printf("Size : %ld - Mflop/s : %lf - %lf - %lf - %lf - %lf\n", size, perf1, perf2, perf3, performance, perf4);
+ *                                                                 fprintf(file, "%ld %lf %lf %lf %lf %lf\n", size, perf1, perf2, perf3, performance, perf4);*/
+
+    /* MKL */
+
+    /*flop = compute_gemm_mkl(size, &start, &stop);
  *     perf_diff(&start, &stop);
  *         performance = perf_mflops(&stop, flop);
  *
- *             printf("Size : %ld - Mflop/s : %lf\n", size, performance);
+ *             printf("Size : %ld - Mflops/s : %lf\n", size, performance);
  *                 fprintf(file, "%ld %lf\n", size, performance);*/
 
-    /* GEMM VS GEMM BLOCK */
-
-    flop = compute_gemm(size, &start, &stop, CblasNoTrans);
+    /* MKL VS THREADS */
+    flop = compute_gemm_mkl(size, &start, &stop);
     perf_diff(&start, &stop);
     perf1 = perf_mflops(&stop, flop);
 
-    flop = compute_gemm(size, &start, &stop, CblasTrans);
+    flop = compute_gemm_thread(size, &start, &stop);
     perf_diff(&start, &stop);
     perf2 = perf_mflops(&stop, flop);
 
-    flop = compute_gemm(size, &start, &stop, CblasConjTrans);
-    perf_diff(&start, &stop);
-    perf3 = perf_mflops(&stop, flop);
-
-    flop = compute_gemm_block(size, &start, &stop);
-    perf_diff(&start, &stop);
-    performance = perf_mflops(&stop, flop);
-
-    printf("Size : %ld - Mflop/s : %lf - %lf - %lf - %lf\n", size, perf1, perf2, perf3, performance);
-    fprintf(file, "%ld %lf %lf %lf %lf\n", size, perf1, perf2, perf3, performance);
+    printf("Size : %ld - Mflops/s : %lf %lf\n", size, perf1, perf2);
+    fprintf(file, "%ld %lf %lf\n", size, perf1, perf2);
     
     size = size * COEF + ADD;
   }
