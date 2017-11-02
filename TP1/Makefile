@@ -4,7 +4,7 @@ LDLIBS=-pthread -mkl
 
 all: driver
 
-driver: driver.c util.c perf.c ddot.c dgemm_thread.c
+driver: driver.c util.c perf.c ddot.c dgemm.c dgemm_thread.c
 	@$(CC) $(CFLAGS) $(LDLIBS) -o $@ $^
 	
 clean:
