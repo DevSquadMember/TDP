@@ -4,10 +4,11 @@
 #include "util.h"
 #include "perf.h"
 
-#define MIN 100
-#define MAX 100000000
+#define MIN 8
+#define MAX 220
 #define INNER 100
-#define COEF 1.25
+#define COEF 1
+#define ADD 1
 //1.25
 
 long compute_ddot(long size, perf_t* start, perf_t* stop) {
@@ -48,7 +49,7 @@ long compute_gemm(long size, perf_t* start, perf_t* stop, const enum CBLAS_TRANS
   d_matrix_free(C);
 
   if (trans == CblasNoTrans) {
-    return (size * size * (4*size + 3));
+    return (size * size * (5*size + 3));
   } else if (trans == CblasTrans) {
     return (size * size * (6*size + 1));
   } else {
@@ -67,16 +68,16 @@ int main(int argc, char** argv) {
 
     // DDOT
 
-    flop = compute_ddot(size, &start, &stop);
+    /*flop = compute_ddot(size, &start, &stop);
     perf_diff(&start, &stop);
     performance = perf_mflops(&stop, flop);
 
     printf("Size : %ld - Mflops/s : %lf\n", size, performance);
     fprintf(file, "%ld %lf\n", size, performance);
-
+*/
     // GEMM
 
-    /*flop = compute_gemm(size, &start, &stop, CblasNoTrans);
+    flop = compute_gemm(size, &start, &stop, CblasNoTrans);
     perf_diff(&start, &stop);
     perf1 = perf_mflops(&stop, flop);
 
@@ -89,8 +90,9 @@ int main(int argc, char** argv) {
     perf3 = perf_mflops(&stop, flop);
 
     printf("Size : %ld - Mflop/s : %lf - %lf - %lf\n", size, perf1, perf2, perf3);
-    fprintf(file, "%ld %lf %lf %lf\n", size, perf1, perf2, perf3);*/
-    size *= COEF;
+    fprintf(file, "%ld %lf %lf %lf\n", size, perf1, perf2, perf3);
+    
+    size = size * COEF + ADD;
   }
   fclose(file);
   return 0;
