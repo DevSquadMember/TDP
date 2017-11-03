@@ -243,72 +243,72 @@ int main(int argc, char** argv) {
     /* DDOT */
 
     /*flop = compute_ddot(size, &start, &stop);
- *     perf_diff(&start, &stop);
- *         performance = perf_mflops(&stop, flop);
- *
- *             printf("Size : %ld - Mflops/s : %lf\n", size, performance);
- *                 fprintf(file, "%ld %lf\n", size, performance);
- *                     */
+    perf_diff(&start, &stop);
+    performance = perf_mflops(&stop, flop);
+
+    printf("Size : %ld - Mflops/s : %lf\n", size, performance);
+    fprintf(file, "%ld %lf\n", size, performance);
+    */
     /* GEMM */
 
     /*flop = compute_gemm(size, &start, &stop, CblasNoTrans);
- *     perf_diff(&start, &stop);
- *         perf1 = perf_mflops(&stop, flop);
- *
- *             flop = compute_gemm(size, &start, &stop, CblasTrans);
- *                 perf_diff(&start, &stop);
- *                     perf2 = perf_mflops(&stop, flop);
- *
- *                         flop = compute_gemm(size, &start, &stop, CblasConjTrans);
- *                             perf_diff(&start, &stop);
- *                                 perf3 = perf_mflops(&stop, flop);
- *
- *                                     printf("Size : %ld - Mflop/s : %lf - %lf - %lf\n", size, perf1, perf2, perf3);
- *                                         fprintf(file, "%ld %lf %lf %lf\n", size, perf1, perf2, perf3);
- *                                             */
+    perf_diff(&start, &stop);
+    perf1 = perf_mflops(&stop, flop);
+
+    flop = compute_gemm(size, &start, &stop, CblasTrans);
+    perf_diff(&start, &stop);
+    perf2 = perf_mflops(&stop, flop);
+
+    flop = compute_gemm(size, &start, &stop, CblasConjTrans);
+    perf_diff(&start, &stop);
+    perf3 = perf_mflops(&stop, flop);
+
+    printf("Size : %ld - Mflop/s : %lf - %lf - %lf\n", size, perf1, perf2, perf3);
+    fprintf(file, "%ld %lf %lf %lf\n", size, perf1, perf2, perf3);
+    */
 
     /* GEMM BLOCK */
-    
+
     /*flop = compute_gemm_block(size, &start, &stop);
- *      perf_diff(&start, &stop);
- *           performance = perf_mflops(&stop, flop);
- *
- *                printf("Size : %ld - Mflop/s : %lf\n", size, performance);
- *                     fprintf(file, "%ld %lf\n", size, performance);*/
+    perf_diff(&start, &stop);
+    performance = perf_mflops(&stop, flop);
+
+    printf("Size : %ld - Mflop/s : %lf\n", size, performance);
+    fprintf(file, "%ld %lf\n", size, performance);*/
 
     /* GEMM VS GEMM BLOCK VS GEMM THREAD */
 
     /*flop = compute_gemm(size, &start, &stop, CblasNoTrans);
- *     perf_diff(&start, &stop);
- *         perf1 = perf_mflops(&stop, flop);
- *
- *             flop = compute_gemm(size, &start, &stop, CblasTrans);
- *                 perf_diff(&start, &stop);
- *                     perf2 = perf_mflops(&stop, flop);
- *
- *                         flop = compute_gemm(size, &start, &stop, CblasConjTrans);
- *                             perf_diff(&start, &stop);
- *                                 perf3 = perf_mflops(&stop, flop);
- *
- *                                     flop = compute_gemm_block(size, &start, &stop);
- *                                         perf_diff(&start, &stop);
- *                                             performance = perf_mflops(&stop, flop);
- *
- *                                                 flop = compute_gemm_thread(size, &start, &stop);
- *                                                     perf_diff(&start, &stop);
- *                                                         perf4 = perf_mflops(&stop, flop);
- *
- *                                                             printf("Size : %ld - Mflop/s : %lf - %lf - %lf - %lf - %lf\n", size, perf1, perf2, perf3, performance, perf4);
- *                                                                 fprintf(file, "%ld %lf %lf %lf %lf %lf\n", size, perf1, perf2, perf3, performance, perf4);*/
+    perf_diff(&start, &stop);
+    perf1 = perf_mflops(&stop, flop);
+
+    flop = compute_gemm(size, &start, &stop, CblasTrans);
+    perf_diff(&start, &stop);
+    perf2 = perf_mflops(&stop, flop);
+
+    flop = compute_gemm(size, &start, &stop, CblasConjTrans);
+    perf_diff(&start, &stop);
+    perf3 = perf_mflops(&stop, flop);
+
+    flop = compute_gemm_block(size, &start, &stop);
+    perf_diff(&start, &stop);
+    performance = perf_mflops(&stop, flop);
+
+    flop = compute_gemm_thread(size, &start, &stop);
+    perf_diff(&start, &stop);
+    perf4 = perf_mflops(&stop, flop);
+
+    printf("Size : %ld - Mflop/s : %lf - %lf - %lf - %lf - %lf\n", size, perf1, perf2, perf3, performance, perf4);
+    fprintf(file, "%ld %lf %lf %lf %lf %lf\n", size, perf1, perf2, perf3, performance, perf4);*/
 
     /* MKL */
 
     /*flop = compute_gemm_mkl(size, &start, &stop);
- *     perf_diff(&start, &stop);
- *         performance = perf_mflops(&stop, flop);
- *
- *             printf("Size : %ld - Mflops/s : %lf\n", size, performance);
- *                 fprintf(file, "%ld %lf\n", size, performance);*/
+    perf_diff(&start, &stop);
+    performance = perf_mflops(&stop, flop);
+
+    printf("Size : %ld - Mflops/s : %lf\n", size, performance);
+    fprintf(file, "%ld %lf\n", size, performance);*/
 
     /* MKL VS THREADS */
     flop = compute_gemm_mkl(size, &start, &stop);
