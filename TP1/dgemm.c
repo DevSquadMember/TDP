@@ -6,26 +6,26 @@
 #define BLOC_SIZE 100
 
 /*
- *  * CBLAS_ORDER Order : ordre par ligne ou colonne
- *   * CBLAS_TRANSPOSE TransA (char) : N/n pour normal - T/t - C/c pour la transposée
- *    * CBLAS_TRANSPOSE TransB (char) : N/n pour norlal - T/t - C/c pour la transposée
- *     * M : nombre de lignes de A et C
- *      * N : nombre de colonnes de B et C
- *       * K : nombre de colonnes de A et nombre de lignes de B
- *        * ALPHA : scalaire alpha (1)
- *         * A : matrice A
- *          * lda : décalage entre chaque ligne de A
- *           * B : matrice B
- *            * ldb : décalage entre chaque ligne de B
- *             * BETA : scalaire beta (0)
- *              * C : matrice C
- *               * ldc : décalage entre chaque ligne de C
- *                *
- *                 * TransA :
- *                  * - CblasNoTrans = (i, j, k) --> size * size * size * 2
- *                   * - CblasTrans = (k, i, j) --> size * size * size * 2
- *                    * - CblasConjTrans = (j, i, k) --> size * size * size * 2
- *                     */
+ * CBLAS_ORDER Order : ordre par ligne ou colonne
+ * CBLAS_TRANSPOSE TransA (char) : N/n pour normal - T/t - C/c pour la transposée
+ * CBLAS_TRANSPOSE TransB (char) : N/n pour norlal - T/t - C/c pour la transposée
+ * M : nombre de lignes de A et C
+ * N : nombre de colonnes de B et C
+ * K : nombre de colonnes de A et nombre de lignes de B
+ * ALPHA : scalaire alpha (1)
+ * A : matrice A
+ * lda : décalage entre chaque ligne de A
+ * B : matrice B
+ * ldb : décalage entre chaque ligne de B
+ * BETA : scalaire beta (0)
+ * C : matrice C
+ * ldc : décalage entre chaque ligne de C
+ *
+ * TransA :
+ * - CblasNoTrans = (i, j, k) --> size * size * size * 2
+ * - CblasTrans = (k, i, j) --> size * size * size * 2
+ * - CblasConjTrans = (j, i, k) --> size * size * size * 2
+ */
 void cblas_dgemm_scalaire(const enum CBLAS_ORDER Order, const enum CBLAS_TRANSPOSE TransA, const enum CBLAS_TRANSPOSE TransB, const int M, const int N, const int K, const double alpha, const double *A, const int lda, const double *B, const int ldb, const double beta, double *C, const int ldc) {
 	int n, m, k, val, b_pos, a_pos, c_pos;
 	if (TransA == CblasNoTrans) {
