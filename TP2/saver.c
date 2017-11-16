@@ -34,13 +34,18 @@ void render_seq(int nb_total_planets, char* title) {
     pclose(f);
 }
 
+// join file1 file2 | join - file3 > output
 void render(int nb_procs, int nb_total_planets, char* title) {
     if (nb_procs > 1) {
         char command[200] = "join";
         char filename[10];
         for (int i = 0; i < nb_procs; i++) {
             sprintf(filename, DATA_FILENAME, i);
-            sprintf(command, "%s %s", command, filename);
+            if (i < 2) {
+                sprintf(command, "%s %s", command, filename);
+            } else {
+                sprintf(command, "%s | join - %s", command, filename);
+            }
         }
         sprintf(command, "%s > %s\n", command, FINAL_DATA_FILENAME);
         printf("COMMAND : %s", command);
