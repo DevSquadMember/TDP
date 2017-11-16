@@ -1,17 +1,13 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include "mpi.h"
+#include <mpi.h>
+#include <stdio.h>
+#include "simulation.h"
 #include "parser.h"
 #include "saver.h"
 
 #define FILENAME "planets.txt"
 #define NB_ITERATIONS 1
-
-#define TAG_BUFFER_SEND 1
-#define TAG_BUFFER_RECV 2
-
-#define TRUE 1
-#define FALSE 0
+#define MAX_SIZE_FOR_RENDERING 12
 
 void declare_types(MPI_Datatype* planet_type, MPI_Datatype* planets_type, struct planet_handle* handle, int nb_planets) {
     // Déclaration du type PLANET_TYPE selon la structure planet_handle
@@ -36,15 +32,12 @@ void declare_types(MPI_Datatype* planet_type, MPI_Datatype* planets_type, struct
     MPI_Type_commit(planets_type);
 }
 
-void ring_iteration() {
-    
-}
-
-int main( int argc, char **argv ) {
+void launch_parrallel_simulation(int nb_iterations, int rendering, char* filename) {
     int i, j;
     int ring_id, ring_size;
-    int iteration, nb_iterations = NB_ITERATIONS;
+    int iteration;
     double dtmin;
+    int generate_graph;
 
     // Données pour MPI
     MPI_Datatype planet_type, planets_type;
@@ -52,20 +45,23 @@ int main( int argc, char **argv ) {
     MPI_Request request_send, request_recv;
 
     // Initialisation de MPI
-    MPI_Init( NULL, NULL );
+    MPI_Init(NULL, NULL);
     MPI_Comm_rank(MPI_COMM_WORLD, &ring_id);
     MPI_Comm_size(MPI_COMM_WORLD, &ring_size);
 
-    // Chargement du fichier de données
-    char* filename = FILENAME;
-    if (argc > 1) {
-        nb_iterations = atoi(argv[1]);
-        if (argc > 2) {
-            filename = argv[2];
-        }
-    }
     int nb_total_planets = parser_nb_planets(filename);
     int nb_planets = nb_total_planets/ring_size;
+
+    if (ring_id == 0 && rendering) {
+        printf("Lancement du calcul en parallèle sur %d processeurs\n", ring_size);
+        printf("-- Nombre d'itérations : %d\n", nb_iterations);
+        printf("-- Fichier des planètes : %s\n", filename);
+        printf("-- Nombre de planètes trouvées : %d\n", nb_total_planets);
+        printf("-- Dispersion des planètes par groupe de : %d\n", nb_planets);
+        printf("-- Début des calculs\n");
+    }
+
+    generate_graph = nb_planets <= MAX_SIZE_FOR_RENDERING && rendering;
 
     if (nb_total_planets > 0) {
         // Déclaration du groupe de planètes locales
@@ -74,24 +70,24 @@ int main( int argc, char **argv ) {
         // Structures buffer pour l'envoi et la réception des groupes de planètes MPI
         struct planet_handle handle1[nb_planets], handle2[nb_planets];
         struct planet_handle *sender, *receiver;
-        
+
         // Chargement des données des planètes locales
-        parser_load(planets, ring_id, nb_planets);
+        parser_load(planets, ring_id*nb_planets, nb_planets, rendering != 0);
 
         // Déclaration des types pour MPI
         declare_types(&planet_type, &planets_type, &(handle1[0]), nb_planets);
-
-        //printf("My own - Rank %d\n", ring_id);
-        //printf("Planet %lf (%lf, %lf - %lf, %lf)\n", planets[ring_id].mass, planets[ring_id].position.x, planets[ring_id].position.y, planets[ring_id].vitesse.x, planets[ring_id].vitesse.y);
 
         // Initialisation des pointeurs de buffer envoi/réception
         sender = handle1;
         receiver = handle2;
 
-        if (ring_size > 1) {
-            save(ring_id, planets, nb_planets);
-        } else {
-            save_seq(planets, nb_planets);
+        // Sauvegarde dans le fichier de résultats de la position initiale des planètes
+        if (generate_graph) {
+            if (ring_size > 1) {
+                save(ring_id, planets, nb_planets);
+            } else {
+                save_seq(planets, nb_planets);
+            }
         }
 
         point forcebuf[nb_planets];
@@ -99,6 +95,10 @@ int main( int argc, char **argv ) {
         for (i = 0 ; i < nb_planets ; i++) {
             dmin[i] = MAX_DOUBLE;
         }
+
+        // Position des voisins dans l'anneau
+        int ring_left = (ring_id - 1 + ring_size) % ring_size;
+        int ring_right = (ring_id + 1) % ring_size;
 
         for (iteration = 0; iteration < nb_iterations; iteration++) {
             // Copie des données des planètes locales dans le buffer d'envoi
@@ -112,46 +112,26 @@ int main( int argc, char **argv ) {
                 forcebuf[j].y = 0;
                 dmin[j] = MAX_DOUBLE;
             }
-            printf("NEW ITERATION --- %d for PROCESS %d\n", iteration, ring_id);
 
             // Parcours de l'anneau pour une itération
             for (i = 0; i < ring_size; i++) {
                 // Lancement des communications
-                MPI_Isend(sender, 1, planets_type, (ring_id + 1) % ring_size, (ring_id + 1) % ring_size, MPI_COMM_WORLD,
-                          &request_send);
-                MPI_Irecv(receiver, 1, planets_type, (ring_id - 1 + ring_size) % ring_size, ring_id,
-                          MPI_COMM_WORLD, &request_recv);
-                //printf("Process %d sent to %d and received from %d\n", ring_id, (ring_id + 1)%ring_size, (ring_id - 1 + ring_size)%ring_size);
+                MPI_Isend(sender, 1, planets_type, ring_right, ring_right, MPI_COMM_WORLD, &request_send);
+                MPI_Irecv(receiver, 1, planets_type, ring_left, ring_id, MPI_COMM_WORLD, &request_recv);
 
-                // Partie calcul
-                printf("-- Run %d - IT %d for process %d\n", i, iteration, ring_id);
-                //printf("BEFORE : Process %d sent Planet (%lf (%lf, %lf)) to %d\n", ring_id, sender[0].m, sender[0].px, sender[0].py, (ring_id + 1) % ring_size);
-                printf("BEFORE : Process %d has Planet (%lf (%lf, %lf)) to %d\n", ring_id, planets[0].mass, planets[0].pos.x, planets[0].pos.y, (ring_id + 1) % ring_size);
+                /** Partie calcul des forces **/
 
-                if (i == 0) {
+                if (i == 0) { // on applique le calcul sur le groupe des planètes locales
                     calcul_force_first_loop(planets, sender, nb_planets, forcebuf, dmin);
-                } else {
+                } else { // on applique le calcul sur un autre groupe
                     calcul_force(planets, sender, nb_planets, forcebuf, dmin);
                 }
 
-                //printf("AFTER : Process %d sent Planet (%lf (%lf, %lf)) to %d\n", ring_id, sender[0].m, sender[0].px, sender[0].py, (ring_id + 1) % ring_size);
-                printf("AFTER : Process %d has Planet (%lf (%lf, %lf)) to %d\n", ring_id, planets[0].mass, planets[0].pos.x, planets[0].pos.y, (ring_id + 1) % ring_size);
-
-                //if (ring_id == 0) {
-
-                    /*for (j = 0; j < nb_planets; j++) {
-                        printf("Process %d sent Planet %d (%lf (%lf, %lf)) to %d\n", ring_id, j, sender[j].m, sender[j].px,
-                               sender[j].py, (ring_id + 1) % ring_size);
-                    }*/
-                //}
+                /** Fin de la partie de calcul des forces **/
 
                 // Attente des communications
                 MPI_Wait(&request_send, &status_send);
                 MPI_Wait(&request_recv, &status_recv);
-
-                //MPI_Barrier(MPI_COMM_WORLD);
-
-                //printf("Communication ok for Process %d\n", ring_id);
 
                 // Echange des buffers des anneaux
                 if (receiver == handle1) {
@@ -162,21 +142,33 @@ int main( int argc, char **argv ) {
                     receiver = handle1;
                 }
             }
-            dtmin = calcul_dtmin(planets, forcebuf, dmin, nb_planets);
-            printf("DTMIN IS %lf\n", dtmin);
+            // Calcul du dtmin local
+            double local_dtmin = calcul_dtmin(planets, forcebuf, dmin, nb_planets);
+
+            // Récupérer la plus petite valeur de dtmin
+            MPI_Allreduce(&local_dtmin, &dtmin, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+            // Calcul de la nouvelle position
             calcul_newpos(planets, forcebuf, nb_planets, dtmin);
 
-            if (ring_size > 1) {
-                save(ring_id, planets, nb_planets);
-            } else {
-                save_seq(planets, nb_planets);
+            // Ecriture dans le fichier de la position des planètes
+            if (generate_graph) {
+                if (ring_size > 1) {
+                    save(ring_id, planets, nb_planets);
+                } else {
+                    save_seq(planets, nb_planets);
+                }
             }
         }
-        save_close();
+        // Fermeture du fichier
+        if (generate_graph)
+            save_close();
 
+        // On attend que tout le monde ait fermé le fichier des résultats
         MPI_Barrier(MPI_COMM_WORLD);
 
-        if (ring_id == 0) {
+        // Le processus 0 va générer le graphe de résultat
+        if (ring_id == 0 && generate_graph) {
             char title[100];
             sprintf(title, "Calcul parallèle sur %d noeuds", ring_size);
             render(ring_size, nb_total_planets, title);
@@ -187,4 +179,26 @@ int main( int argc, char **argv ) {
     }
 
     MPI_Finalize();
+}
+
+
+int main( int argc, char **argv ) {
+    int nb_iterations = NB_ITERATIONS;
+    int rendering = 1;
+
+    // Chargement du fichier de données
+    char* filename = FILENAME;
+    if (argc > 1) {
+        nb_iterations = atoi(argv[1]);
+        if (argc > 2) {
+            filename = argv[2];
+            if (argc > 3) {
+                rendering = atoi(argv[3]);
+            }
+        }
+    }
+
+    launch_parrallel_simulation(nb_iterations, rendering, filename);
+
+    return EXIT_SUCCESS;
 }

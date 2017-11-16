@@ -16,7 +16,7 @@ int parser_nb_planets(char* filename) {
 
     // Check if the file can be read
     if (file == NULL) {
-        printf("File could not be read\n");
+        printf("Le fichier %s n'a pas pu être ouvert en lecture\n", filename);
         return -1;
     }
 
@@ -25,32 +25,7 @@ int parser_nb_planets(char* filename) {
     return nb_planets_in_file;
 }
 
-/*int parser_load(planet* planets) {
-    int buffer_size = 255;
-    char buffer[buffer_size];
-
-    double m, px, py, vx, vy;
-
-    // Get the first line with : Number_of_vertices | Number_of_edges | Number_of_objectives | Number_of_cars_by_player
-    for (int i = 0 ; i < nb_planets_in_file ; i++) {
-        getLine(file, buffer, buffer_size);
-        sscanf(buffer, "%lf %lf %lf %lf %lf", &m, &px, &py, &vx, &vy);
-        printf("Planet %d\n", i);
-        printf("M : %lf, Px : %lf, Py : %lf, Vx : %lf, Vy : %lf\n", m, px, py, vx, vy);
-        planets[i].mass = m;
-        planets[i].position.x = px;
-        planets[i].position.y = py;
-        planets[i].vitesse.x = vx;
-        planets[i].vitesse.y = vy;
-        planets[i].acceleration.x = 0;
-        planets[i].acceleration.y = 0;
-    }
-
-    fclose(file);
-    return EXIT_SUCCESS;
-}*/
-
-int parser_load(planet* planets, int start, int nb_planets) {
+int parser_load(planet* planets, int start, int nb_planets, int verbose) {
     int buffer_size = 255;
     char buffer[buffer_size];
 
@@ -64,7 +39,8 @@ int parser_load(planet* planets, int start, int nb_planets) {
         getLine(file, buffer, buffer_size);
 
         sscanf(buffer, "%lf %lf %lf %lf %lf", &m, &px, &py, &vx, &vy);
-        printf("Planet M : %lf, Px : %lf, Py : %lf, Vx : %lf, Vy : %lf\n", m, px, py, vx, vy);
+        if (nb_planets < 20 && verbose)
+            printf("Planète n°%d chargée - Masse : %lf, Position : (%lf, %lf), Vitesse : (%lf, %lf)\n", start + i + 1, m, px, py, vx, vy);
         planets[i].mass = m;
         planets[i].pos.x = px;
         planets[i].pos.y = py;

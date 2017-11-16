@@ -1,7 +1,7 @@
 #ifndef PHYSICS
 #define PHYSICS
 
-#define MAX_DOUBLE 100000
+#define MAX_DOUBLE 10000000000000000000000000.0
 
 typedef struct point {
     double x;
@@ -19,7 +19,7 @@ struct planet_handle {
     double m, px, py;
 };
 
-void calcul_force_seq(planet*, planet*,int, point*,double*);
+void calcul_force_seq(planet*, int, point*,double*);
 void calcul_force_first_loop(planet*, struct planet_handle*,int, point*,double*);
 void calcul_force(planet*, struct planet_handle*, int, point*,double*);
 double calcul_dtmin(planet*,point*,double*,int);
