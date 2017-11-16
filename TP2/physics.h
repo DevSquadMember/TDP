@@ -16,7 +16,7 @@ typedef struct planet{
 
 void calcul_force_first_loop(planet*, planet*,int, point*,double*);
 void calcul_force(planet*, planet*, int, point*,double*);
-double calcul_dtmin();
+double calcul_dtmin(planet*,point*,double*,int);
 void calcul_newpos(planet*,point*,int,double);
 
 #endif

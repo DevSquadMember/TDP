@@ -1,22 +1,47 @@
 #include <math.h>
 #include <limits.h>
+#include <stdio.h>
 #include "physics.h"
-#define G 6.67e-11
+#define G 1
 
 void calcul_force_first_loop(planet* myplanets, planet* bufplanets,int size, point* forcebuf,double* dmin){
-  int i,j;
-  double sqdisty,sqdistx,norm_dist;
-  for (i=0; i<size;i++){
+  int i,j,sidex,sidey;
+  double distx,disty,angle,force,sqdist,dist;
+  for(i=0; i<size;i++){
     for(j=0;j<size;j++){ 
       if(i!=j){
-	sqdistx = pow(abs(myplanets[i].pos.x-bufplanets[j].pos.x),2);
-	sqdisty = pow(abs(myplanets[i].pos.y-bufplanets[j].pos.y),2);
-	norm_dist = sqrt(sqdistx+sqdisty);
-	forcebuf[i].x += (G*myplanets[i].mass*bufplanets[j].mass)/sqdistx;
-	forcebuf[i].y += (G*myplanets[i].mass*bufplanets[j].mass)/sqdisty;
-	if(dmin[i] > norm_dist){
-	  dmin[i] = norm_dist;
+	
+	sidex = sidey = 1;
+	
+
+
+	distx = bufplanets[j].pos.x-myplanets[i].pos.x;
+	disty = bufplanets[j].pos.y-myplanets[i].pos.y;
+        
+	if(distx < 0){
+	  distx = -distx;
+	  sidex = -1;
 	}
+	if(disty < 0){
+	  disty = -disty;
+	  sidey = -1;
+	}
+
+	angle = atan(disty/distx);
+
+	sqdist = pow(distx,2)+pow(disty,2);
+	dist = sqrt(sqdist);
+	force = (G*myplanets[i].mass*bufplanets[j].mass)/sqdist;
+
+
+	
+	forcebuf[i].x += sidex*force*cos(angle);
+	forcebuf[i].y += sidey*force*sin(angle);
+
+	if(dmin[i] > dist){
+	  dmin[i] = dist;
+	}
+       
       }
     }
   }
@@ -25,31 +50,54 @@ void calcul_force_first_loop(planet* myplanets, planet* bufplanets,int size, poi
 
 
 void calcul_force(planet* myplanets, planet* bufplanets,int size, point* forcebuf,double* dmin){
-  int i,j;
-  double sqdisty,sqdistx,norm_dist;
+  int i,j,sidex,sidey;
+  double distx,disty,angle,force,sqdist,dist;
   for (i=0; i<size;i++){
     for(j=0;j<size;j++){ 
-      sqdistx = pow(abs(myplanets[i].pos.x-bufplanets[j].pos.x),2);
-      sqdisty = pow(abs(myplanets[i].pos.y-bufplanets[j].pos.y),2);
-      norm_dist = sqrt(sqdistx+sqdisty);
-      forcebuf[i].x = (G*myplanets[i].mass*bufplanets[j].mass)/sqdistx;
-      forcebuf[i].y = (G*myplanets[i].mass*bufplanets[j].mass)/sqdisty;
-      if(dmin[i] > norm_dist){
-	dmin[i] = norm_dist;
+      	
+      sidex = sidey = 1;
+	
+
+      distx = bufplanets[j].pos.x-myplanets[i].pos.x;
+      disty = bufplanets[j].pos.y-myplanets[i].pos.y;
+        
+      if(distx < 0){
+	distx = -distx;
+	sidex = -1;
       }
+      if(disty < 0){
+	disty = -disty;
+	sidey = -1;
+      }
+
+      angle = atan(disty/distx);
+
+      sqdist = pow(distx,2)+pow(disty,2);
+      dist = sqrt(sqdist);
+      force = (G*myplanets[i].mass*bufplanets[j].mass)/sqdist;    
+	
+      forcebuf[i].x += sidex*force*cos(angle);
+      forcebuf[i].y += sidey*force*sin(angle);
+
+      if(dmin[i] > dist){
+	dmin[i] = dist;
+      }
+
     }
   }
 }
       
 
-double calcul_dtmin(planet* myplanets,double* dmin, int size){
+double calcul_dtmin(planet* myplanets,point* forcebuf,double* dmin, int size){
   int i;
   double dtmin = MAX_DOUBLE;
   double sqspeed,norm_acc,delta;
+
   for(i=0;i<size;i++){
     sqspeed = pow(myplanets[i].speed.x,2)+pow(myplanets[i].speed.y,2);
-    norm_acc = sqrt(pow(myplanets[i].acc.x,2)+pow(myplanets[i].acc.y,2));
+    norm_acc = sqrt(pow(forcebuf[i].x/myplanets[i].mass,2)+pow(forcebuf[i].y/myplanets[i].mass,2));
     delta = sqspeed - 2*norm_acc*(-0.1*dmin[i]);
+    //printf("planete %d, sqspeed :  %f, acc : %f, delta: %f\n",i,sqspeed,norm_acc,delta);
     dmin[i] = (-sqrt(sqspeed)+sqrt(delta))/norm_acc;
   }
   for(i=0;i<size;i++){
@@ -57,12 +105,13 @@ double calcul_dtmin(planet* myplanets,double* dmin, int size){
       dtmin = dmin[i];
     }
   }
-  return dtmin;
+  return 1;
 }
 
 
 void calcul_newpos(planet* myplanets,point* forcebuf,int size,double dt){
-  int i,ax,ay;
+  int i;
+  double ax,ay;
   for (i=0;i<size;i++){
     ax = forcebuf[i].x/myplanets[i].mass;
     ay = forcebuf[i].y/myplanets[i].mass;
