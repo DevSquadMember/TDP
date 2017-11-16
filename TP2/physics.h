@@ -1,17 +1,18 @@
 #ifndef PHYSICS
 #define PHYSICS
+
 #define MAX_DOUBLE 100000
 
-typedef struct point{
-  double x;
-  double y;
+typedef struct point {
+    double x;
+    double y;
 } point;
 
 typedef struct planet{
-  double mass;
-  point acc;
-  point speed;
-  point pos;
+    double mass;
+    point acc;
+    point speed;
+    point pos;
 } planet;
 
 void calcul_force_first_loop(planet*, planet*,int, point*,double*);
