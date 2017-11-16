@@ -133,8 +133,6 @@ int main( int argc, char **argv ) {
                 } else {
                     calcul_force(planets, sender, nb_planets, forcebuf, dmin);
                 }
-                dtmin = calcul_dtmin(planets, forcebuf, dmin, nb_planets);
-                printf("DTMIN IS %lf\n", dtmin);
 
                 //printf("AFTER : Process %d sent Planet (%lf (%lf, %lf)) to %d\n", ring_id, sender[0].m, sender[0].px, sender[0].py, (ring_id + 1) % ring_size);
                 printf("AFTER : Process %d has Planet (%lf (%lf, %lf)) to %d\n", ring_id, planets[0].mass, planets[0].pos.x, planets[0].pos.y, (ring_id + 1) % ring_size);
@@ -164,6 +162,8 @@ int main( int argc, char **argv ) {
                     receiver = handle1;
                 }
             }
+            dtmin = calcul_dtmin(planets, forcebuf, dmin, nb_planets);
+            printf("DTMIN IS %lf\n", dtmin);
             calcul_newpos(planets, forcebuf, nb_planets, dtmin);
 
             if (ring_size > 1) {

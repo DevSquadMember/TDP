@@ -33,12 +33,14 @@ int main(int argc,char ** argv){
     save_seq(myplanets, nb_planets);
     for(i=0;i<nb_it;i++){
         for(j=0;j<nb_planets;j++){
+            //printf("FORCEBUF %d IS (%lf, %lf)\n", j, forcebuf[j].x, forcebuf[j].y);
             forcebuf[j].x = 0;
             forcebuf[j].y = 0;
             dmin[j] = MAX_DOUBLE;
         }
         calcul_force_seq(myplanets, myplanets, nb_planets, forcebuf, dmin);
         dtmin = calcul_dtmin(myplanets, forcebuf, dmin, nb_planets);
+        //printf("DTMIN IS %lf\n", dtmin);
         //printf("dtmin it %d : %f\n",i,dtmin);
         calcul_newpos(myplanets, forcebuf, nb_planets, dtmin);
         ///printf("fin it %d : 0 : posx : %f, posy : %f, 1 : posx : %f ,posy : %f, 2 : posx : %f, posy : %f\n", i,myplanets[0].pos.x,myplanets[0].pos.y,myplanets[1].pos.x,myplanets[1].pos.y,myplanets[2].pos.x,myplanets[2].pos.y);

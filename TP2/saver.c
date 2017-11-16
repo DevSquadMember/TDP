@@ -16,6 +16,8 @@ void render_seq(int nb_total_planets, char* title) {
     FILE* f = popen("gnuplot", "w");
     // exécution de la commande gnuplot
     fprintf(f, "set term png\n");
+    ///fprintf(f, "set xrange [-10:500]\n");
+    ///fprintf(f, "set yrange [-10:500]\n");
     fprintf(f, "set title \"%s\"\n", final_title);
     //fprintf(f, "set trange [*:*]\n");
     fprintf(f, "set output \"res.png\"\n");

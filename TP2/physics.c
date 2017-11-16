@@ -2,7 +2,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include "physics.h"
-#define G 1
+#define G 6.67e-11
 
 void calcul_force_seq(planet* myplanets, planet* bufplanets, int size, point* forcebuf, double* dmin) {
     int i,j,sidex,sidey;
@@ -12,8 +12,6 @@ void calcul_force_seq(planet* myplanets, planet* bufplanets, int size, point* fo
             if(i!=j) {
 
                 sidex = sidey = 1;
-
-
 
                 distx = bufplanets[j].pos.x-myplanets[i].pos.x;
                 disty = bufplanets[j].pos.y-myplanets[i].pos.y;
@@ -35,6 +33,8 @@ void calcul_force_seq(planet* myplanets, planet* bufplanets, int size, point* fo
 
                 forcebuf[i].x += sidex*force*cos(angle);
                 forcebuf[i].y += sidey*force*sin(angle);
+
+                ///printf("FORCE BUF FOR %d : %lf %lf\n", i, forcebuf[i].x, forcebuf[i].y);
 
                 if(dmin[i] > dist){
                     dmin[i] = dist;
@@ -70,8 +70,6 @@ void calcul_force_first_loop(planet* myplanets, struct planet_handle* bufplanets
                 sqdist = pow(distx,2)+pow(disty,2);
                 dist = sqrt(sqdist);
                 force = (G*myplanets[i].mass*bufplanets[j].m)/sqdist;
-
-
 
                 forcebuf[i].x += sidex*force*cos(angle);
                 forcebuf[i].y += sidey*force*sin(angle);
@@ -144,22 +142,25 @@ double calcul_dtmin(planet* myplanets, point* forcebuf, double* dmin, int size){
             dtmin = dmin[i];
         }
     }
-    return dtmin;
+    return 1000;//dtmin;
 }
 
 
 void calcul_newpos(planet* myplanets, point* forcebuf, int size, double dt) {
     int i;
     double ax, ay;
-    printf("DT IS %lf\n", dt);
+    ///printf("DT IS %lf\n", dt);
     for (i = 0 ; i < size ; i++) {
-        ax = forcebuf[i].x / myplanets[i].mass;
-        ay = forcebuf[i].y / myplanets[i].mass;
+        //printf("FORCE BUF FOR %d : %lf %lf\n", i, forcebuf[i].x, forcebuf[i].y);
+        //printf("MASS IS : %lf\n", myplanets[i].mass);
+        ax = 1.0*forcebuf[i].x / myplanets[i].mass;
+        ay = 1.0*forcebuf[i].y / myplanets[i].mass;
+        ///printf("AX AY : %lf, %lf\n", ax, ay);
         myplanets[i].speed.x += ax*dt;
         myplanets[i].speed.y += ay*dt;
-        //printf("NEW SPEED IS (%lf, %lf)\n", myplanets[i].speed.x, myplanets[i].speed.y);
+        ///printf("NEW SPEED IS (%lf, %lf)\n", myplanets[i].speed.x, myplanets[i].speed.y);
         myplanets[i].pos.x += myplanets[i].speed.x * dt + (ax*pow(dt,2))/2;
         myplanets[i].pos.y += myplanets[i].speed.y * dt + (ay*pow(dt,2))/2;
-        //printf("NEW POS IS (%lf, %lf)\n", myplanets[i].pos.x, myplanets[i].pos.y);
+        ///printf("NEW POS IS (%lf, %lf)\n", myplanets[i].pos.x, myplanets[i].pos.y);
     }
 }
