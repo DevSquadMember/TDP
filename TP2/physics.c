@@ -149,10 +149,10 @@ void calcul_newpos(planet* myplanets, point* forcebuf, int size, double dt) {
         ax = 1.0*forcebuf[i].x / myplanets[i].mass;
         ay = 1.0*forcebuf[i].y / myplanets[i].mass;
 
-        myplanets[i].speed.x += ax*dt;
-        myplanets[i].speed.y += ay*dt;
-
         myplanets[i].pos.x += myplanets[i].speed.x * dt + (ax*pow(dt,2))/2;
         myplanets[i].pos.y += myplanets[i].speed.y * dt + (ay*pow(dt,2))/2;
+
+        myplanets[i].speed.x += ax*dt;
+        myplanets[i].speed.y += ay*dt;
     }
 }
