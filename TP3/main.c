@@ -83,8 +83,6 @@ int main(int argc, char **argv) {
     // Récupération des coordonnées
     MPI_Cart_coords(grid_group.comm, grid_group.rank, NB_DIMENSIONS, grid_coords);
 
-    printf("WORLD GROUP SIZE IS %d\n", world_group.size);
-
     int size, local_size;
     int sendcounts[world_group.size];
     int displs[world_group.size];
@@ -94,14 +92,18 @@ int main(int argc, char **argv) {
 
     if (world_group.rank == 0) {
         // Récupération des matrices
+        printf("Matrice A\n");
         parse(A_FILE, &matrix_a, &size);
+        printf("Matrice B\n");
+        parse(B_FILE, &matrix_b, &size);
         local_size = size/nb_blocs;
     }
 
     MPI_Bcast(&local_size, 1, MPI_INT, 0, grid_group.comm);
     for (int i = 0 ; i < world_group.size ; i++) {
         sendcounts[i] = 1;
-        displs[i] = (int) (floor(i / local_size) * nb_blocs + i);
+        displs[i] = (int) (floor(i / nb_blocs) * nb_blocs * local_size + i%nb_blocs);
+        //displs[i] = (int) (floor(i / local_size) * nb_blocs + i);
         ///printf("displs %d is %d\n", i, displs[i]);
     }
 
@@ -115,13 +117,15 @@ int main(int argc, char **argv) {
     MPI_Type_create_resized(bloc, 0, local_size * sizeof(double), &bloc);
     MPI_Type_commit(&bloc);
 
-    // Découpage de la matrice et envoi d'un bloc sur un processus
+    // Découpage des matrices A et B et envoi d'un bloc sur un processus
     MPI_Scatterv(matrix_a, sendcounts, displs, bloc, matrix_local_a, local_size*local_size, MPI_DOUBLE, 0, world_group.comm);
+    MPI_Scatterv(matrix_b, sendcounts, displs, bloc, matrix_local_b, local_size*local_size, MPI_DOUBLE, 0, world_group.comm);
 
     /** Calcul **/
     for (int i = 0 ; i < local_size ; i++) {
         for (int j = 0 ; j < local_size ; j++) {
-            printf("Process %d has for (%d, %d) : %lf\n", world_group.rank, i, j, matrix_local_a[j*local_size + i]);
+            printf("Process %d has for A(%d, %d) : %lf\n", world_group.rank, i, j, matrix_local_a[j*local_size + i]);
+            printf("Process %d has for B(%d, %d) : %lf\n", world_group.rank, i, j, matrix_local_b[j*local_size + i]);
             matrix_local_c[j*local_size + i] = world_group.rank;
         }
     }
