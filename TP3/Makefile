@@ -14,5 +14,10 @@ run_par: all
 	@mpirun -np ${NP} main_par $(RUN_ARGS)
 
 run_scat:
-	@mpicc scatter.c -o scatter
+	@mpicc scatter.c parser.c -o scatter
 	@mpirun -np 4 scatter
+
+clean:
+	@echo "Suppression des fichiers compilés..."
+	@rm -f main_par
+	@rm -f scatter
