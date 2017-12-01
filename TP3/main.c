@@ -3,6 +3,8 @@
 #include <math.h>
 #include "mpi.h"
 #include "parser.h"
+#include "cblas.h"
+#include <string.h>
 
 #define TRUE 1
 #define FALSE 0
@@ -107,6 +109,7 @@ int main(int argc, char **argv) {
         ///printf("displs %d is %d\n", i, displs[i]);
     }
 
+    double* matrix_buffer_a = malloc(local_size*local_size* sizeof(double));
     double* matrix_local_a = malloc(local_size*local_size* sizeof(double));
     double* matrix_local_b = malloc(local_size*local_size* sizeof(double));
     double* matrix_local_c = malloc(local_size*local_size* sizeof(double));
@@ -130,6 +133,24 @@ int main(int argc, char **argv) {
         }
     }
     /** Fin des calculs **/
+
+    /** multiplication de fox **/
+    for (int i =0 ; i < nb_blocs : i++ ){
+      if(row_group.rank == (col_group.rank + i)%nb_blocs){
+	memcpy(matrix_buffer_a,matrix_local_a,local_size*local_size*sizeof(double));
+      }
+      // Broadcast de A sur la ligne
+      MPI_Bcast(&matrix_buffer_a,local_size*local_size,MPI_DOUBLE,(col_group.rank + i )%nb_blocs,row_group.comm);
+      // récupération de B
+      if(i != 0){
+	MPI_Isend(matrix_local_b,local_size*local_size,MPI_DOUBLE,((col_group.rank - 1) + nb_blocs)%nb_blocs ,99,col_group.comm);
+	MPI_Irecv(matrix_local_b,local_size*local_size,MPI_DOUBLE,(col_group.rank + 1)%nb_blocs,99,col_group.comm);
+
+      // multiplication des blocs
+      cblas_dgemm(CblasColMajor,CblasNoTrans,CblasNoTrans,local_size,local_size,local_size,1.,matrix_buffer_a,local_size,matrix_local_b,local_size,1.,matric_local_c,local_size);
+      
+      
+
 
     /**if (col_rank == 1) {
         W = rank;
@@ -159,6 +180,13 @@ int main(int argc, char **argv) {
     if (world_group.rank == 0) {
         print_matrix(matrix_c, size);
     }
+
+    free(matrix_a);
+    free(matrix_b);
+    free(matrix_c);
+    free(matrix_local_a);
+    free(matrix_local_b);
+    free(matrix_local_c);
 
     MPI_Finalize();
 
