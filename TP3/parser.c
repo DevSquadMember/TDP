@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include "parser.h"
 
+#define BUFFER_SIZE 255
+
 FILE* file;
-const int buffer_size = 255;
-char buffer[buffer_size];
+char buffer[BUFFER_SIZE];
 
 void getLine(FILE *file, char *buffer, int buffer_size) {
     while (fgets(buffer, buffer_size, file) != NULL && buffer[0] == '%');
@@ -20,7 +21,7 @@ int parse_size(char* filename) {
         return value;
     }
 
-    getLine(file, buffer, buffer_size);
+    getLine(file, buffer, BUFFER_SIZE);
     sscanf(buffer, "%d", &value);
 
     return value;
