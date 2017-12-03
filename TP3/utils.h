@@ -13,7 +13,7 @@ struct group {
 void init_group(struct group* group);
 
 // Nombre de flops en fonction de la taille des matrices
-long get_flops(int size, int nb_threads);
+long long get_flops(int size, int nb_threads);
 
 // Afficher une matrice
 void print_matrix(double* matrix, int size);

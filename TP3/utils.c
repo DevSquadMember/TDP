@@ -8,8 +8,8 @@ void init_group(struct group* group) {
     MPI_Comm_size(group->comm, &group->size);
 }
 
-long get_flops(int size, int nb_threads) {
-    return (long) (1.0 * (size * size * size * 2) / nb_threads);
+long long get_flops(int size, int nb_threads) {
+    return (long long int) (1.0 * (size * size * size * 2) / nb_threads);
 }
 
 // MATRICES
