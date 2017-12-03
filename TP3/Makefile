@@ -5,10 +5,13 @@ ifeq (run_par,$(firstword $(MAKECMDGOALS)))
   $(eval $(RUN_ARGS):;@:)
 endif
 
+CFLAGS=-Wall -O2 -std=c99
+LDLIBS=-mkl
+
 all: par
 
 par:
-	@mpicc main.c parser.c -o main_par
+	@mpicc $(CFLAGS) -lcblas main.c parser.c -o main_par
 
 run_par: all
 	@mpirun -np ${NP} main_par $(RUN_ARGS)
