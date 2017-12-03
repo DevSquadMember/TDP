@@ -34,9 +34,7 @@ void parse_matrix(double* matrix, int matrix_size) {
             if (!fscanf(file, "%lf", &value))
                 break;
             matrix[j*(matrix_size)+i] = value;
-            printf("%lf ", matrix[j * matrix_size + i]);
         }
-        printf("\n");
     }
     fclose(file);
 }

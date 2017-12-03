@@ -5,6 +5,8 @@
 #include "mpi.h"
 #include "parser.h"
 #include "cblas.h"
+#include "perf.h"
+#include "utils.h"
 
 #define TRUE 1
 #define FALSE 0
@@ -16,32 +18,13 @@
 #define A_FILE "a.txt"
 #define B_FILE "b.txt"
 
-struct group {
-    MPI_Comm comm;
-    int size;
-    int rank;
-};
-
-void init_group(struct group* group) {
-    MPI_Comm_rank(group->comm, &group->rank);
-    MPI_Comm_size(group->comm, &group->size);
-}
-
-void print_matrix(double* matrix, int size) {
-    for (int i = 0 ; i < size ; i++) {
-        for (int j = 0 ; j < size ; j++) {
-            printf("%lf ", matrix[j*size + i]);
-        }
-        printf("\n");
-    }
-}
-
 int size;
 
 /* Matrices A, B et C complètes sur le process 0 */
 double* matrix_a = NULL;
 double* matrix_b = NULL;
 double* matrix_c = NULL;
+double* matrix_seq_c = NULL;
 
 /* Matrices A, B et C locales (morceaux) */
 double* matrix_local_a = NULL;
@@ -53,7 +36,7 @@ int init_matrices(int nb_blocs) {
     int sizeB;
 
     // Chargement de la matrice A
-    printf("Matrice A\n");
+    ///printf("Matrice A\n");
     size = parse_size(A_FILE);
     if (size == -1) {
         return -1;
@@ -62,7 +45,7 @@ int init_matrices(int nb_blocs) {
     parse_matrix(matrix_a, size);
 
     // Chargement de la matrice B
-    printf("Matrice B\n");
+    ///printf("Matrice B\n");
     sizeB = parse_size(B_FILE);
     if (sizeB == -1) {
         return -1;
@@ -74,20 +57,19 @@ int init_matrices(int nb_blocs) {
     parse_matrix(matrix_b, size);
 
     matrix_c = malloc(sizeof(double) * size * size);
+    matrix_seq_c = malloc(sizeof(double) * size * size);
+
+    ///printf("Matrices de taille : %d\n", size);
 
     return size/nb_blocs;
-}
-
-void free_matrix(double* matrix) {
-    if (matrix != NULL) {
-        free(matrix);
-    }
 }
 
 void end() {
     free_matrix(matrix_a);
     free_matrix(matrix_b);
     free_matrix(matrix_c);
+
+    free_matrix(matrix_seq_c);
 
     free_matrix(matrix_local_a);
     free_matrix(matrix_local_b);
@@ -96,24 +78,15 @@ void end() {
     MPI_Finalize();
 }
 
-double calcul_norm2(double* Cpara,double* Cseq, int size){
-  double* matrix = malloc(size*sizeof(double));
-  int i;
-  for(i = 0;i<size;i++)
-    matrix[i] = Cpara[i] - Cseq[i];
-  double norme2 = cblas_dnrm2(size,matrix,1);
-  free(matrix);
-  return norme2;
-}
-
 int main(int argc, char **argv) {
     struct group world_group, grid_group, col_group, row_group;
     int nb_blocs;
     int dimensions[NB_DIMENSIONS], periods[NB_DIMENSIONS], remain_dims[NB_DIMENSIONS], grid_coords[NB_DIMENSIONS];
     int reorder;
 
-    MPI_Status status_recv, status_send;
-    MPI_Request request_recv, request_send;
+    perf_t start, stop, start_scatter, stop_scatter, start_calcul, stop_calcul, start_gather, stop_gather;
+
+    MPI_Status status;
     MPI_Init(NULL, NULL);
 
     world_group.comm = MPI_COMM_WORLD;
@@ -183,7 +156,7 @@ int main(int argc, char **argv) {
     for (int i = 0 ; i < grid_group.size ; i++) {
         sendcounts[i] = 1;
         //displs[i] = (int) (floor(i / nb_blocs) * nb_blocs * local_size + i%nb_blocs);
-        displs[i] = (int) (i%nb_blocs) * nb_blocs * local_size + i/nb_blocs;
+        displs[i] = i % nb_blocs * nb_blocs * local_size + i / nb_blocs;
     }
 
     double* matrix_buffer_a = malloc(local_size*local_size* sizeof(double));
@@ -191,72 +164,110 @@ int main(int argc, char **argv) {
     matrix_local_b = malloc(local_size*local_size* sizeof(double));
     matrix_local_c = malloc(local_size*local_size* sizeof(double));
 
+    // Initialisation de C
+    /*for (int i = 0 ; i < local_size ; i++) {
+        for (int j = 0 ; j < local_size ; j++) {
+            matrix_local_c[j*local_size + i] = 0;
+        }
+    }*/
+
     // Définition du bloc pour chaque processeur
     MPI_Datatype bloc;
     MPI_Type_vector(local_size, local_size, local_size*nb_blocs, MPI_DOUBLE, &bloc); // nb_blocs
     MPI_Type_create_resized(bloc, 0, local_size * sizeof(double), &bloc);
     MPI_Type_commit(&bloc);
 
-    // Découpage des matrices A et B et envoi d'un bloc sur un processus
+    perf(&start);
+
+    perf(&start_scatter);
+
+    // Découpage des matrices A et B et envoi d'un bloc sur chaque processus
     MPI_Scatterv(matrix_a, sendcounts, displs, bloc, matrix_local_a, local_size*local_size, MPI_DOUBLE, 0, grid_group.comm);
     MPI_Scatterv(matrix_b, sendcounts, displs, bloc, matrix_local_b, local_size*local_size, MPI_DOUBLE, 0, grid_group.comm);
 
-    /*if (world_group.rank == 2) {
-        printf("Bloc B(%d, %d) \n", grid_coords[0], grid_coords[1]);
-        print_matrix(matrix_local_b, local_size);
-
-        printf("Bloc A(%d, %d) \n", grid_coords[0], grid_coords[1]);
-        print_matrix(matrix_local_a, local_size);
-    }*/
-    /** Calcul **/
-    for (int i = 0 ; i < local_size ; i++) {
-        for (int j = 0 ; j < local_size ; j++) {
-            matrix_local_c[j*local_size + i] = 0;
-        }
-    }
-    /** Fin des calculs **/
+    perf(&stop_scatter);
 
     /** Multiplication de Fox **/
 
+    perf(&start_calcul);
+
+    int dest = ((col_group.rank - 1) + nb_blocs) % nb_blocs;
+    int src = (col_group.rank + 1) % nb_blocs;
+
     for (int i = 0 ; i < nb_blocs ; i++ ) {
 
-        if (col_group.rank == (row_group.rank + i)%nb_blocs) {
-	        memcpy(matrix_buffer_a, matrix_local_a, local_size * local_size * sizeof(double));
-        }
-
         // Broadcast de A sur la ligne
+        if (col_group.rank == (row_group.rank + i)%nb_blocs) {
+            // Le processeur qui va partager sa partie locale de A la charge dans le buffer
+            memcpy(matrix_buffer_a, matrix_local_a, local_size * local_size * sizeof(double));
+        }
         MPI_Bcast(matrix_buffer_a, local_size * local_size, MPI_DOUBLE, (col_group.rank + i )%nb_blocs, row_group.comm);
-        //printf("Iteration %d - Bloc (%d, %d) received : %lf\n", i, grid_coords[0], grid_coords[1], matrix_buffer_a[0]);
-        ///printf("Iteration %d - Bloc (%d, %d) is receiving A from %d\n", i, grid_coords[0], grid_coords[1], (col_group.rank + i )%nb_blocs);
 
-        //printf("Iteration %d - Bloc A is for Bloc (%d, %d) \n", i, grid_coords[0], grid_coords[1]);
-        //print_matrix(matrix_buffer_a, local_size);
-
-        // récupération de B
-        if (i != 0) {
-            MPI_Isend(matrix_local_b, local_size * local_size, MPI_DOUBLE, ((col_group.rank - 1) + nb_blocs) % nb_blocs, TAG, col_group.comm, &request_send);
-            MPI_Irecv(matrix_local_b, local_size * local_size, MPI_DOUBLE, (col_group.rank + 1) % nb_blocs, TAG, col_group.comm, &request_recv);
-
-            MPI_Wait(&request_send, &status_send);
-            MPI_Wait(&request_recv, &status_recv);
-
-            //printf("Iteration %d - Bloc B is for Bloc (%d, %d) \n", i, grid_coords[0], grid_coords[1]);
-            //print_matrix(matrix_local_b, local_size);
-
-            // multiplication des blocs
-            cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, local_size, local_size, local_size, 1., matrix_buffer_a, local_size, matrix_local_b, local_size, 1., matrix_local_c, local_size);
+        // Au premier tour, le bloc B nécessaire vient d'être récupéré avec le scatterv
+        if (i == 0) {
+            cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, local_size, local_size, local_size, 1., matrix_buffer_a, local_size, matrix_local_b, local_size, 0., matrix_local_c, local_size);
         } else {
-            //printf("Iteration %d - Bloc B is for Bloc (%d, %d) \n", i, grid_coords[0], grid_coords[1]);
-            //print_matrix(matrix_local_b, local_size);
+            // Echange de B --> décalage vers le haut
+            MPI_Sendrecv_replace(matrix_local_b, local_size*local_size, MPI_DOUBLE, dest, TAG, src, TAG, col_group.comm, &status);
+
+            // Multiplication des blocs locaux A et B
             cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, local_size, local_size, local_size, 1., matrix_buffer_a, local_size, matrix_local_b, local_size, 1., matrix_local_c, local_size);
         }
     }
 
+    perf(&stop_calcul);
+
+    /** Fin de la Multiplication de Fox **/
+
+    perf(&start_gather);
+
+    // Rassemblement des blocs de C sur le processeur 0
     MPI_Gatherv(matrix_local_c, local_size*local_size, MPI_DOUBLE, matrix_c, sendcounts, displs, bloc, 0, grid_group.comm);
 
+    perf(&stop_gather);
+
+    perf(&stop);
+
     if (grid_group.rank == 0) {
-        printf("Matrice C\n");
-        print_matrix(matrix_c, size);
+        ///printf("Matrice C\n");
+        ///print_matrix(matrix_c, size);
+
+        perf_diff(&start_scatter, &stop_scatter);
+        printf("Temps pour le scatter : ");
+        perf_printmicro(&stop_scatter);
+
+        perf_diff(&start_calcul, &stop_calcul);
+        printf("Temps pour le calcul : ");
+        perf_printmicro(&stop_calcul);
+
+        perf_diff(&start_gather, &stop_gather);
+        printf("Temps pour le gather : ");
+        perf_printmicro(&stop_gather);
+
+        perf_diff(&start, &stop);
+        double perf_par = perf_mflops(&stop, get_flops(size, grid_group.size));
+        printf("Performance parallèle : %lf\n", perf_par);
+
+        printf("Temps pour le parallèle : ");
+        perf_printmicro(&stop);
+
+        // Séquentiel
+
+        perf(&start);
+        cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, size, size, size, 1., matrix_a, size, matrix_b, size, 0., matrix_seq_c, size);
+        perf(&stop);
+        ///printf("Vraie Matrice C\n");
+        ///print_matrix(matrix_seq_c, size);
+
+        perf_diff(&start, &stop);
+        double perf_seq = perf_mflops(&stop, get_flops(size, 1));
+        printf("Performance séquentielle : %lf\n", perf_seq);
+
+        printf("Temps pour le séquentiel : ");
+        perf_printmicro(&stop);
+
+        double norm = calcul_norm2(matrix_c, matrix_seq_c, size);
+        printf("Norme : %lf\n", norm);
     }
 
     MPI_Type_free(&bloc);
