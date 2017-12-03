@@ -96,6 +96,16 @@ void end() {
     MPI_Finalize();
 }
 
+double calcul_norm2(double* Cpara,double* Cseq, int size){
+  double* matrix = malloc(size*sizeof(double));
+  int i;
+  for(i = 0;i<size;i++)
+    matrix[i] = Cpara[i] - Cseq[i];
+  double norme2 = cblas_dnrm2(size,matrix,1);
+  free(matrix);
+  return norme2;
+}
+
 int main(int argc, char **argv) {
     struct group world_group, grid_group, col_group, row_group;
     int nb_blocs;
