@@ -1,4 +1,4 @@
-#include <printf.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include "utils.h"
 #include "cblas.h"
