@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
     dimensions[1] = nb_blocs;
     periods[0] = FALSE;
     periods[1] = TRUE;
-    reorder = TRUE;
+    reorder = FALSE;
 
     // Création de la topologie cartésienne
     if (MPI_Cart_create(MPI_COMM_WORLD, NB_DIMENSIONS, dimensions, periods, reorder, &(grid_group.comm))  != MPI_SUCCESS) {
@@ -141,6 +141,8 @@ int main(int argc, char **argv) {
     int sendcounts[grid_group.size];
     int displs[grid_group.size];
 
+    //printf("Proc %d (%d, %d) is %d in row_group and %d in col_groud\n", grid_group.rank, grid_coords[0], grid_coords[1], row_group.rank, col_group.rank);
+
     // Le processeur 0 charge les matrices et calcule la taille locale des blocs pour chaque processeur
     if (grid_group.rank == 0) {
         local_size = init_matrices(nb_blocs);
@@ -157,6 +159,7 @@ int main(int argc, char **argv) {
         sendcounts[i] = 1;
         //displs[i] = (int) (floor(i / nb_blocs) * nb_blocs * local_size + i%nb_blocs);
         displs[i] = i % nb_blocs * nb_blocs * local_size + i / nb_blocs;
+        //printf("displs[%d] = %d\n", i, displs[i]);
     }
 
     double* matrix_buffer_a = malloc(local_size*local_size* sizeof(double));
@@ -191,14 +194,19 @@ int main(int argc, char **argv) {
 
     perf(&start_calcul);
 
-    int dest = ((col_group.rank - 1) + nb_blocs) % nb_blocs;
+    //printf("Proc %d is at %d/%d on grid - %d/%d\n", grid_group.rank, grid_coords[0], grid_coords[1], row_group.rank, col_group.rank);
+
+    int dest = (col_group.rank - 1 + nb_blocs) % nb_blocs;
     int src = (col_group.rank + 1) % nb_blocs;
+
+    //printf("Proc at %d/%d (%d) is sending B to %d and receiving from %d in col group\n", grid_coords[0], grid_coords[1], col_group.rank, dest, src);
 
     for (int i = 0 ; i < nb_blocs ; i++ ) {
 
         // Broadcast de A sur la ligne
-        if (col_group.rank == (row_group.rank + i)%nb_blocs) {
-            // Le processeur qui va partager sa partie locale de A la charge dans le buffer
+        if (row_group.rank == (col_group.rank + i)%nb_blocs) {
+            printf("Iteration %d - Le process %d va envoyer son A=%lf\n", i, grid_group.rank, matrix_local_a[0]);
+	    // Le processeur qui va partager sa partie locale de A la charge dans le buffer
             memcpy(matrix_buffer_a, matrix_local_a, local_size * local_size * sizeof(double));
         }
         MPI_Bcast(matrix_buffer_a, local_size * local_size, MPI_DOUBLE, (col_group.rank + i )%nb_blocs, row_group.comm);
@@ -212,6 +220,9 @@ int main(int argc, char **argv) {
 
             // Multiplication des blocs locaux A et B
             cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, local_size, local_size, local_size, 1., matrix_buffer_a, local_size, matrix_local_b, local_size, 1., matrix_local_c, local_size);
+        }
+	if (grid_group.rank == 0) {
+            printf("Iteration %d - A is %lf and B is %lf for rank %d\n", i, matrix_buffer_a[0], matrix_local_b[0], grid_group.rank); 
         }
     }
 
@@ -229,8 +240,8 @@ int main(int argc, char **argv) {
     perf(&stop);
 
     if (grid_group.rank == 0) {
-        ///printf("Matrice C\n");
-        ///print_matrix(matrix_c, size);
+        printf("Matrice C\n");
+        print_matrix(matrix_c, size);
 
         perf_diff(&start_scatter, &stop_scatter);
         printf("Temps pour le scatter : ");
@@ -256,8 +267,8 @@ int main(int argc, char **argv) {
         perf(&start);
         cblas_dgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, size, size, size, 1., matrix_a, size, matrix_b, size, 0., matrix_seq_c, size);
         perf(&stop);
-        ///printf("Vraie Matrice C\n");
-        ///print_matrix(matrix_seq_c, size);
+        printf("Vraie Matrice C\n");
+        print_matrix(matrix_seq_c, size);
 
         perf_diff(&start, &stop);
         double perf_seq = perf_mflops(&stop, get_flops(size, 1));
