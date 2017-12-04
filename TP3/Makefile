@@ -1,6 +1,6 @@
 MAKEFLAGS += -s
 
-ifeq (run_par,$(firstword $(MAKECMDGOALS)))
+ifeq (run,$(firstword $(MAKECMDGOALS)))
   # use the rest as arguments for "run"
   RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
   # ...and turn them into do-nothing targets
@@ -16,12 +16,12 @@ endif
 
 CFLAGS=-Wall -O2 -std=c99
 
-all: par
+all: build run
 
-par:
-	@mpicc $(CFLAGS) -lcblas -lm main.c parser.c perf.c utils.c -o main_par
+build:
+	@mpicc $(CFLAGS) -lm -lmkl_intel_lp64 -lmkl_sequential -lmkl_core main.c parser.c perf.c utils.c -o main_par
 
-run_par: all
+run: all
 	@export MKL_NUM_THREADS=1
 	@mpirun -np ${NP} main_par $(RUN_ARGS)
 

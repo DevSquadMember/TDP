@@ -22,4 +22,6 @@ void free_matrix(double* matrix);
 
 double calcul_norm2(const double* Cpara, const double* Cseq, int size);
 
+double* generate_matrix(int size);
+
 #endif //TDP_UTILS_H

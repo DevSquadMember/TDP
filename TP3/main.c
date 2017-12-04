@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <time.h>
 #include "mpi.h"
 #include "parser.h"
 #include "cblas.h"
@@ -68,6 +69,18 @@ int init_matrices(int nb_blocs) {
     if (PRINT) {
         printf("Matrices de taille : %d\n", size);
     }
+
+    return size/nb_blocs;
+}
+
+int generate_matrices(int nb_blocs) {
+    srand((unsigned int) time(NULL));
+
+    matrix_a = generate_matrix(size);
+    matrix_b = generate_matrix(size);
+
+    matrix_c = malloc(sizeof(double) * size * size);
+    matrix_seq_c = malloc(sizeof(double) * size * size);
 
     return size/nb_blocs;
 }
@@ -151,7 +164,12 @@ int main(int argc, char **argv) {
 
     // Le processeur 0 charge les matrices et calcule la taille locale des blocs pour chaque processeur
     if (grid_group.rank == 0) {
-        local_size = init_matrices(nb_blocs);
+        if (argc > 1) {
+            size = atoi(argv[1]);
+            local_size = generate_matrices(nb_blocs);
+        } else {
+            local_size = init_matrices(nb_blocs);
+        }
     }
 
     // Broadcast de la taille de chaque bloc que vont récupérer les processeurs

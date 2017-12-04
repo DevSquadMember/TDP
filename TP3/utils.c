@@ -3,6 +3,9 @@
 #include "utils.h"
 #include "cblas.h"
 
+#define MAX 100000
+#define MIN (-100000)
+
 void init_group(struct group* group) {
     MPI_Comm_rank(group->comm, &group->rank);
     MPI_Comm_size(group->comm, &group->size);
@@ -37,4 +40,27 @@ double calcul_norm2(const double* Cpara, const double* Cseq, int size) {
     double norme2 = cblas_dnrm2(size*size, matrix, 1);
     free(matrix);
     return norme2;
+}
+
+double* generate_matrix(int size) {
+    double* matrix = malloc(size * size * sizeof(double));
+
+    for (int i = 0 ; i < size ; i++) {
+        for (int j = 0 ; j < size ; j++) {
+            matrix[i*size + j] = ((rand()/(double)RAND_MAX) * (2*MAX) + (rand()/(double)RAND_MAX)) + MIN;
+        }
+    }
+
+    return matrix;
+}
+
+void generate_matrix(int size, char* filename) {
+    FILE* file;
+
+    file = fopen(filename, "w");
+    fprintf(file, "%d\n", size);
+    double value;
+
+
+    fclose(file);
 }
