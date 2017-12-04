@@ -53,14 +53,3 @@ double* generate_matrix(int size) {
 
     return matrix;
 }
-
-void generate_matrix(int size, char* filename) {
-    FILE* file;
-
-    file = fopen(filename, "w");
-    fprintf(file, "%d\n", size);
-    double value;
-
-
-    fclose(file);
-}
