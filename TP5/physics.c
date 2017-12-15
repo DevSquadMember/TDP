@@ -94,18 +94,18 @@ void calcul_force_first_loop(planet* myplanets, struct planet_handle* bufplanets
     }
 }
 
-void calcul_force_own(planet* myplanets, int size, point* forcebuf, double* dmin){
+void calcul_force_own(box* box){
     int i,j,sidex,sidey;
     double distx,disty,angle,force,sqdist,dist;
 
-    for(i=0; i<size;i++){
-        for(j=0;j<size;j++){
+    for(i=0; i<box->planet_length;i++){
+        for(j=0;j<box->planet_length;j++){
             if(i!=j){
 
                 sidex = sidey = 1;
 
-                distx = myplanets[j].pos.x - myplanets[i].pos.x;
-                disty = myplanets[j].pos.y - myplanets[i].pos.y;
+                distx = box->planet_list[j].pos.x - box->planet_list[i].pos.x;
+                disty = box->planet_list[j].pos.y - box->planet_list[i].pos.y;
 
                 if(distx < 0){
                     distx = -distx;
@@ -120,14 +120,10 @@ void calcul_force_own(planet* myplanets, int size, point* forcebuf, double* dmin
 
                 sqdist = pow(distx,2)+pow(disty,2);
                 dist = sqrt(sqdist);
-                force = (G*myplanets[i].mass*myplanets[j].mass)/sqdist;
+                force = (G*box->planet_list[i].mass*box->planet_list[j].mass)/sqdist;
 
-                forcebuf[i].x += sidex*force*cos(angle);
-                forcebuf[i].y += sidey*force*sin(angle);
-
-                if(dmin[i] > dist){
-                    dmin[i] = dist;
-                }
+                box->forcebuf[i].x += sidex*force*cos(angle);
+                box->forcebuf[i].y += sidey*force*sin(angle);
             }
         }
     }

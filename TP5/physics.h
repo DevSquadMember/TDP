@@ -32,7 +32,7 @@ void copy_planet(planet* src, planet* dest);
 
 void calcul_force_seq(planet*, int, point*,double*);
 void calcul_force_first_loop(planet*, struct planet_handle*,int, point*,double*);
-void calcul_force_own(planet* myplanets, int size, point* forcebuf, double* dmin);
+void calcul_force_own(box* box);
 void calcul_force(planet*, struct planet_handle*, int, point*,double*);
 void calcul_force_other(planet* myplanets, planet* planets, int size, point* forcebuf, double* dmin);
 void calcul_force_two_boxes(box* my_box, box* remote_box,double threshold);
