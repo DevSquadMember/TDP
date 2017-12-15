@@ -18,7 +18,8 @@ typedef struct planet{
 typedef struct box{
   planet* planet_list;
   point* forcebuf;
-  int size;
+  int planet_length;
+  double box_length;
   point box_pos;
   planet center;
 } box;
