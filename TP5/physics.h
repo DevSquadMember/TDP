@@ -15,6 +15,14 @@ typedef struct planet{
     point pos;
 } planet;
 
+typedef struct box{
+  planet* planet_list;
+  point* forcebuf;
+  int size;
+  point box_pos;
+  planet center;
+} box;
+
 struct planet_handle {
     double m, px, py;
 };
