@@ -35,8 +35,9 @@ void calcul_force_first_loop(planet*, struct planet_handle*,int, point*,double*)
 void calcul_force_own(planet* myplanets, int size, point* forcebuf, double* dmin);
 void calcul_force(planet*, struct planet_handle*, int, point*,double*);
 void calcul_force_other(planet* myplanets, planet* planets, int size, point* forcebuf, double* dmin);
-void calcul_force_both(planet* myplanets, planet* planets, int size, point* forcebuf1, point* forcebuf2, double* dmin1, double* dmin2);
-double calcul_dtmin(planet*,point*,double*,int);
-void calcul_newpos(planet*,point*,int,double);
+void calcul_force_two_boxes(box* my_box, box* remote_box,double threshold);
+void calcul_force_center(planet* center,planet* myplanets,int size, point* forcebuf);
+void calcul_force_complete(planet* myplanets, int sizea, planet* planets, int sizeb, point* forcebuf1);
+void calcul_center_mass(box* box)
 
 #endif
