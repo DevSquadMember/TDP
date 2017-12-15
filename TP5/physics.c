@@ -288,3 +288,19 @@ void calcul_newpos(planet* myplanets, point* forcebuf, int size, double dt) {
         myplanets[i].speed.y += ay*dt;
     }
 }
+
+
+/** Calcul du centre de masse **/
+void calcul_center_mass(planet * myplanets, int size, planet* center){
+  center->mass = 0;
+  center->pos.x = 0;
+  center->pos.y = 0;
+  int i;
+  for (i = 0 ; i < size ; i++){
+    center->mass += myplanets[i].mass;
+    center->pos.x += myplanets[i].pos.x*myplanets[i].mass;
+    center->pos.y += myplanets[i].pos.y*myplanets[i].mass;
+  }
+  center->pos.x /= center->mass;
+  center->pos.y /= center->mass;
+}
