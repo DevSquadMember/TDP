@@ -10,6 +10,34 @@
  *     dgemm
  */
 
+void dtrsm(char side,char uplo, char trans,char unit,int m,int n,int alpha, struct matrix* A,int lda,struct matrix* B, int ldb){
+  int i,j,k;
+
+  if(uplo == "L"){
+    for(k=0;k<n;k++){
+      for(i=0;i<m;i++){
+	for(j=0;j<i;j++){
+	  matrix_set(B,i,k, matrix_get(B,i,k)-matrix_get(A,i,j)*matrix_get(B,j,k));
+	}
+	if(unit != "U"){
+	  matrix_setdiv(B,i,k,matrix_get(A,i,i));
+	}
+      }
+    }
+  } else {
+    for(k=0;k<n;k++){
+      for(i=m-1;i>0;i--){
+	for(j=i;j<m;j--){
+	  matrix_set(B,k,i,matrix_get(B,k,i)-matrix_get(A,i,j)*matrix_get(B,k,j));
+	}
+	if(unit != "U"){
+	  matrix_setdiv(B,k,i,matrix_get(A,i,i));
+	}
+      }
+    }
+  }
+}
+
 void dgetf2(struct matrix* A) {
     for (int k = 0 ; k < A->nb_rows ; k++) {
         for (int i = k + 1 ; i < A->nb_rows ; i++) {
@@ -43,6 +71,40 @@ void vector_load(struct vector* v) {
     for (int i = 0 ; i < v->nb_values ; i++) {
         vector_set(v, i, (i+1) % (v->nb_values) + 1);
     }
+}
+
+void check_trsm_example() {
+  struct matrix m;
+  struct matrix t;
+
+  matrix_init(&m,3,6);
+  m.values[0] = 1;
+  m.values[1] = 1;
+  m.values[2] = 2;
+  
+  m.values[3] = 3;
+  m.values[4] = 1;
+  m.values[5] = 5;
+
+  m.values[6] = 6;
+  m.values[7] = 7;
+  m.values[8] = 1;
+  
+  m.values[9] = 1;
+  m.values[10] = 2;
+  m.values[11] = 3;
+  
+  m.values[12] = 4;
+  m.values[13] = 5;
+  m.values[14] = 6;
+  
+  m.values[15] = 7;
+  m.values[16] = 8;
+  m.values[17] = 9;
+
+  matrix_sub(&t,3,3,0,3,&m);
+
+  dtrsm("D","L","N","U",3,6,1,&m,3,&t,3);
 }
 
 void check_lu_example() {
