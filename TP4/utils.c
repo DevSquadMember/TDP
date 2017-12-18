@@ -77,6 +77,12 @@ void vector_set(struct vector* vector, int i, double value) {
     vector->values[vector->ld * i] = value;
 }
 
+double vector_setsub(struct vector* vector, int i, double value) {
+    double* res = &(vector->values[vector->ld * i]);
+    (*res) -= value;
+    return *res;
+}
+
 double vector_get(struct vector* vector, int i) {
     return vector->values[vector->ld * i];
 }

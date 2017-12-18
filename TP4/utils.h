@@ -33,6 +33,7 @@ void matrix_free(struct matrix* matrix);
 
 void vector_init(struct vector* vector, int nb_values);
 void vector_set(struct vector* vector, int i, double value);
+double vector_setsub(struct vector* vector, int i, double value);
 double vector_get(struct vector* vector, int i);
 void vector_show(struct vector* vector);
 void vector_free(struct vector* vector);

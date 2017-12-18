@@ -49,3 +49,30 @@ void dtrsm(char side,char uplo, char trans,char unit,int m,int n,int alpha, stru
         }
     }
 }
+
+/**
+ * Descente-remontée de LU pour trouver le vecteur X solution du système
+ *
+ * @param A matrice A
+ * @param X vecteur solution du système
+ * @param B vecteur résultat du système
+ */
+void matrix_solve(struct matrix* A, struct vector* X, struct vector* B) {
+    // descente
+    for (int i = 0 ; i < B->nb_values ; i++) {
+        double sum = 0.;
+        for (int j = 0 ; j < i ; j++) {
+            sum += matrix_get(A, i, j) * vector_get(X, j);
+        }
+        vector_set(X, i, vector_get(B, i) - sum);
+    }
+
+    // remontée
+    for (int i = 0 ; i < B->nb_values ; i++) {
+        double sum = 0.;
+        for (int j = i + 1 ; j < A->nb_cols ; j++) {
+            sum += matrix_get(A, i, j) * vector_get(X, j);
+        }
+        vector_setsub(X, i, sum/matrix_get(A, i, i));
+    }
+}
