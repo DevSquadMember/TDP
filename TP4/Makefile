@@ -4,7 +4,7 @@ LDLIBS=-pthread
 
 all: build
 
-build: main.c utils.c
+build: main.c utils.c lib_matrix.c timer.c
 	@$(CC) $(CFLAGS) $(LDLIBS) -o main $^
 	
 clean:
