@@ -1,5 +1,8 @@
+#include <math.h>
+#include <printf.h>
 #include "lib_matrix.h"
 #include "utils.h"
+#include "mpi.h"
 
 /**
  * Factorisation LU in-place :
@@ -74,5 +77,51 @@ void matrix_solve(struct matrix* A, struct vector* X, struct vector* B) {
             sum += matrix_get(A, i, j) * vector_get(X, j);
         }
         vector_set(X, i, (vector_get(X, i) - sum)/matrix_get(A, i, i));
+    }
+}
+
+int get_index(int i, int rank, int size) {
+    return (int) floor(1.0 * (i - rank) / size);
+}
+
+void MPI_matrix_solve(struct matrix* A, struct vector* X, struct vector* B) {
+    int rank, size, current, index;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    // descente
+    for (int i = 0; i < A->nb_rows; i++) {
+        double local_sum = 0.;
+        double sum = 0.;
+        current = i % size;
+        index = rank;
+        for (int j = 0 ; j < i; j++) {
+            if (index >= i) {
+                break;
+            }
+            local_sum += matrix_get(A, i, j) * vector_get(X, j);
+            index += size;
+        }
+        MPI_Reduce(&local_sum, &sum, 1, MPI_DOUBLE, MPI_SUM, current, MPI_COMM_WORLD);
+        if (rank == current) {
+            index = get_index(i, rank, size);
+            vector_set(X, index, vector_get(B, index) - sum);
+        }
+    }
+
+    // remontée
+    for (int i = A->nb_rows - 1; i >= 0; i--) {
+        double local_sum = 0.;
+        double sum = 0.;
+        current = i % size;
+        int begin = (int) floor(1.0 * (i + size - rank) / size);
+        for (int j = begin ; j < A->nb_cols; j++) {
+            local_sum += matrix_get(A, i, j) * vector_get(X, j);
+        }
+        MPI_Reduce(&local_sum, &sum, 1, MPI_DOUBLE, MPI_SUM, current, MPI_COMM_WORLD);
+        if (rank == current) {
+            index = (int) floor((i - rank) / size);
+            vector_set(X, index, (vector_get(X, index) - sum) / matrix_get(A, i, index));
+        }
     }
 }

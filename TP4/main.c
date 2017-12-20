@@ -13,6 +13,8 @@
  *     dgemm
  */
 
+int rank, size;
+
 void matrix_load(struct matrix* m) {
     double value;
     for (int i = 0 ; i < m->nb_rows ; i++) {
@@ -125,13 +127,13 @@ void check_solving_example(int n) {
     printf("\nMatrix A before\n");
     matrix_show(&m);
 
-    printf("\nVector X before\n");
-    vector_show(&x);
     printf("\nVector B before\n");
     vector_show(&b);
 
     // DGETF2
     dgetf2(&m);
+    /*printf("\nMatrix A after\n");
+    matrix_show(&m);*/
     // Descente-remontée
     matrix_solve(&m, &x, &b);
 
@@ -170,63 +172,127 @@ void check_extract_matrix() {
     matrix_free(&sub);
 }
 
-int main(int argc, char** argv) {
-    /*struct matrix m;
-    struct vector v;*/
+void solve_parallel(struct matrix* A, struct vector* X, struct vector* B) {
+    struct matrix local_a;
+    struct vector local_x, local_b;
+    int m_size = A->nb_rows;
 
-    /*matrix_init(&m, 4, 4);
+    int local_size = m_size/size;
+    matrix_init(&local_a, local_size, m_size);
+    vector_init(&local_x, local_size);
+    vector_init(&local_b, local_size);
 
-    printf("\nMatrice\n");
-    matrix_load(&m);
+    // Type col : colonne de la matrice à envoyer une par une sur chaque processeur pour la matrice A
+    MPI_Datatype col;
+    MPI_Type_vector(local_size, m_size, m_size*size, MPI_DOUBLE, &col);
+    MPI_Type_create_resized(col, 0, m_size * sizeof(double), &col);
+    MPI_Type_commit(&col);
 
-    matrix_show(&m);
+    // Type cell : case du vecteur à envoyer une par une sur chaque processeur pour les vecteurs
+    MPI_Datatype cell;
+    MPI_Type_vector(local_size, 1, size, MPI_DOUBLE, &cell);
+    MPI_Type_create_resized(cell, 0, 1 * sizeof(double), &cell);
+    MPI_Type_commit(&cell);
 
-    printf("\nAfter FACTO LU\n");
-    facto_lu(&m);
+    // Envoi des colonnes de la matrice A et des cases du vecteur B
+    MPI_Scatter(A->values, 1, col, local_a.values, m_size*local_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Scatter(B->values, 1, cell, local_b.values, local_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    matrix_show(&m);
+    // Décomposition LU
+    // TODO
 
-    vector_init(&v, 4);
+    // Descente-remontée LU
+    MPI_matrix_solve(&local_a, &local_x, &local_b);
 
-    printf("\nVector\n");
-    vector_load(&v);
+    // Récupération du résultat dans le vecteur X
+    MPI_Gather(local_x.values, local_size, MPI_DOUBLE, X->values, 1, cell, 0, MPI_COMM_WORLD);
 
-    vector_show(&v);
+    matrix_free(&local_a);
+    vector_free(&local_x);
+    vector_free(&local_b);
+}
+
+void check_solve_parallel() {
+    struct matrix m;
+    struct vector x, b;
+    int m_size = 8;
+    matrix_init(&m, m_size, m_size);
+    vector_init(&x, m_size);
+    vector_init(&b, m_size);
+
+    if (rank == 0) {
+        /*for (int i = 0 ; i < m.nb_cols ; i++) {
+            for (int j = 0 ; j < m.nb_rows ; j++) {
+                matrix_set(&m, j, i, i%size + 1);
+            }
+        }*/
+        for (int i = 0 ; i < m.nb_cols ; i++) {
+            for (int j = 0 ; j < m.nb_rows ; j++) {
+                double value;
+                if (i < j) {
+                    value = 1;
+                } else if (i > j+1) {
+                    value = 0.;
+                } else if (i == j+1) {
+                    value = i;
+                } else if (i == 0 && j == 0) {
+                    value = 1.;
+                } else {
+                    value = -1*i;
+                }
+                matrix_set(&m, j, i, value);
+            }
+        }
+
+        vector_load(&b);
+        printf("\nVECTOR B\n");
+        vector_show(&b);
+
+        /*1.000000 1.000000 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+        1.000000 -1.000000 2.000000 0.000000 0.000000 0.000000 0.000000 0.000000
+        1.000000 1.000000 -2.000000 3.000000 0.000000 0.000000 0.000000 0.000000
+        1.000000 1.000000 1.000000 -3.000000 4.000000 0.000000 0.000000 0.000000
+        1.000000 1.000000 1.000000 1.000000 -4.000000 5.000000 0.000000 0.000000
+        1.000000 1.000000 1.000000 1.000000 1.000000 -5.000000 6.000000 0.000000
+        1.000000 1.000000 1.000000 1.000000 1.000000 1.000000 -6.000000 7.000000
+        1.000000 1.000000 1.000000 1.000000 1.000000 1.000000 1.000000 -7.000000*/
+
+        printf("\nMatrix A\n");
+        matrix_show(&m);
+    }
+
+    solve_parallel(&m, &x, &b);
+
+    if (rank == 0) {
+        printf("\nSolution X is \n");
+        vector_show(&x);
+    }
 
     matrix_free(&m);
-    vector_free(&v);*/
+    vector_free(&x);
+    vector_free(&b);
+}
 
-    check_lu_example();
-    check_trsm_example();
-    check_solving_example(5);
-    /*timer_begin();
-    check_lu_example();
-    double t = timer_end();
-    printf("Time : %lf microseconds\n", t);*/
-
-    /**int rank, size;
-
-    MPI_Status status;
-    MPI_Request request_recv;
-    MPI_Request request_send;
+int main(int argc, char** argv) {
     MPI_Init(NULL, NULL);
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    int BLOC_LENGTH = 5;
-    int M_SIZE = 20;
+    if (rank == 0) {
+        /**check_lu_example();
+        check_trsm_example();*/
+        //check_extract_matrix();
+        //check_solving_example(8);
+        /*timer_begin();
+        check_lu_example();
+        double t = timer_end();
+        printf("Time : %lf microseconds\n", t);*/
+    }
 
-    MPI_Datatype bloc;
-    MPI_Type_vector(M_SIZE, BLOC_LENGTH, BLOC_LENGTH, MPI_DOUBLE, &bloc); // nb_blocs
-    //MPI_Type_create_resized(bloc, 0, local_size * sizeof(double), &bloc);
-    MPI_Type_commit(&bloc);**/
+    check_solve_parallel();
 
-    // Découpage des matrices A et B et envoi d'un bloc sur un processus
-    //MPI_Scatterv(matrix_a, sendcounts, displs, bloc, matrix_local_a, local_size*local_size, MPI_DOUBLE, 0, grid_group.comm);
-
-
-    //check_extract_matrix();
+    MPI_Finalize();
 
     return EXIT_SUCCESS;
 }
