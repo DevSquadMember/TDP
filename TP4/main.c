@@ -110,6 +110,35 @@ void check_lu_example() {
     matrix_free(&m);
 }
 
+void check_solving_example(int n) {
+    struct matrix m;
+    struct vector x, b;
+
+    matrix_init(&m, n, n);
+    vector_init(&x, n);
+    vector_init(&b, n);
+
+    matrix_load(&m);
+    vector_load(&b);
+
+    printf("\nSolving problem\n");
+    printf("\nMatrix A before\n");
+    matrix_show(&m);
+
+    printf("\nVector X before\n");
+    vector_show(&x);
+    printf("\nVector B before\n");
+    vector_show(&b);
+
+    // DGETF2
+    dgetf2(&m);
+    // Descente-remontée
+    matrix_solve(&m, &x, &b);
+
+    printf("\nVector X after\n");
+    vector_show(&x);
+}
+
 void check_extract_matrix() {
     struct matrix m;
     struct matrix sub;
@@ -169,6 +198,7 @@ int main(int argc, char** argv) {
 
     check_lu_example();
     check_trsm_example();
+    check_solving_example(5);
     /*timer_begin();
     check_lu_example();
     double t = timer_end();

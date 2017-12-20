@@ -68,11 +68,11 @@ void matrix_solve(struct matrix* A, struct vector* X, struct vector* B) {
     }
 
     // remontée
-    for (int i = 0 ; i < B->nb_values ; i++) {
+    for (int i = B->nb_values - 1 ; i >= 0 ; i--) {
         double sum = 0.;
         for (int j = i + 1 ; j < A->nb_cols ; j++) {
             sum += matrix_get(A, i, j) * vector_get(X, j);
         }
-        vector_setsub(X, i, sum/matrix_get(A, i, i));
+        vector_set(X, i, (vector_get(X, i) - sum)/matrix_get(A, i, i));
     }
 }
