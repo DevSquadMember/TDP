@@ -13,7 +13,7 @@ ifeq (check,$(firstword $(MAKECMDGOALS)))
 endif
 
 CC=gcc
-CFLAGS=-Wall -O2 -std=c99 
+CFLAGS=-Wall -O2 -std=c99 -lm
 LDLIBS=-pthread
 
 all: build

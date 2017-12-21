@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 #include "lib_utils.h"
 #include "lib_matrix.h"
 #include "mpi.h"
