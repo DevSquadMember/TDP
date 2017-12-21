@@ -4,7 +4,6 @@
 #include "lib_utils.h"
 #include "lib_matrix.h"
 #include "mpi.h"
-#include "perf.h"
 #include "utils.h"
 
 /*
