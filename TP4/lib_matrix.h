@@ -14,7 +14,7 @@ struct vector;
  */
 void dgetf2(struct matrix* A);
 
-int dgetf2_complexity(int size);
+long long dgetf2_complexity(int size);
 
 /**
  * Factorisation LU in-place en parallèle:
@@ -39,7 +39,7 @@ void dgetrf(struct matrix* A);
  */
 void matrix_solve(struct matrix* A, struct vector* X, struct vector* B);
 
-int matrix_solve_complexity(int size);
+long long matrix_solve_complexity(int size);
 
 /**
  * Descente-remontée parallèle pour calculer le vecteur solution X
