@@ -26,7 +26,7 @@ void dgetf2(struct matrix* A) {
     }
 }
 
-void dtrsm(char side,char uplo, char trans,char unit,int m,int n,int alpha, struct matrix* A,int lda,struct matrix* B, int ldb){
+void dtrsm(char side,char uplo, char trans,char unit,int m,int n,int alpha, struct matrix* A, struct matrix* B){
     int i,j,k;
 
     if(uplo == 'L'){
@@ -52,6 +52,42 @@ void dtrsm(char side,char uplo, char trans,char unit,int m,int n,int alpha, stru
             }
         }
     }
+}
+
+void dgemm(char transa, char transb, int M, int N, int K,double alpha,struct matrix* A, struct matrix* B, double beta, struct matrix* C){
+  int i,j,k;
+
+  for(i=0;i<M;i++){
+    for(j=0;j<N;j++){
+      matrix_set(C,i,j,beta*matrix_get(C,i,j));
+      for(k=0;k<K;k++){
+	matrix_set(C,i,j,alpha*matrix_get(A,i,k)*matrix_get(B,k,j));
+      }
+    }
+  }
+}
+
+void dgetrf(struct matrix* A){
+  int bloc_length = 10;
+  int nb_blocs = (A->nb_cols)/10;
+  if (nb_blocs == 1){
+    dgetf2(A);
+  } else {
+    struct matrix* LuBloc,TrsmVt,TrsmHz,GemmBloc;
+    for(i=0;i<nb_blocs;i++){
+      
+      matrix_sub(LuBloc, bloc_length, bloc_length, i*bloc_length, i*bloc_length, A);
+      matrix_sub(TrsmVt, bloc_length, A->nb_rows - bloc_length*(i+1), i*bloc_length, (i+1)*bloc_length, A);
+      matrix_sub(TrsmHz, A->nb_cols - bloc_length*(i+1), bloc_length, (i+1)*bloc_length, i*bloc_length, A););
+      matrix_sub(GemmBloc, A->nb_cols - bloc_length*(i+1), A->nb_cols - bloc_length*(i+1), (i+1)*bloc_length, (i+1)*bloc_length, A);
+      
+      dgetf2(LuBloc);
+
+      dtrsm('a', 'L', 'a', 'a', bloc_length, A->nb_cols - bloc_length*(i+1),1, LuBloc, TrsmHz);
+      dtrsm('a', 'U', 'a', 'a', bloc_length, A->nb_cols - bloc_length*(i+1),1, LuBloc, TrsmVt);
+
+      dgemm('a', 'a', bloc_length, bloc_length, A->nb_rows - bloc_length*(i+1), 1, TrsmVt, TrsmHz, 1, GemmBloc);
+		 
 }
 
 /**

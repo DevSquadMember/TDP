@@ -4,8 +4,10 @@
 struct matrix;
 struct vector;
 
+void dgetrf(struct matrix* A);
 void dgetf2(struct matrix* A);
-void dtrsm(char side,char uplo, char trans,char unit,int m,int n,int alpha, struct matrix* A,int lda,struct matrix* B, int ldb);
+void dgemm(char transa, char transb, int M, int N, int K,double alpha,struct matrix* A, struct matrix* B,  double beta, struct matrix* C);
+void dtrsm(char side,char uplo, char trans,char unit,int m,int n,int alpha, struct matrix* A,struct matrix* B);
 void matrix_solve(struct matrix* A, struct vector* X, struct vector* B);
 void MPI_matrix_solve(struct matrix* A, struct vector* X, struct vector* B);
 
