@@ -1,7 +1,7 @@
 #include "utils.h"
 #include "lib_utils.h"
 #include <math.h>
-#include <printf.h>
+#include <stdio.h>
 
 void matrix_load(struct matrix* m) {
     double value;
