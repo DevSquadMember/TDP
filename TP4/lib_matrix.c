@@ -1,5 +1,5 @@
 #include <math.h>
-#include <printf.h>
+#include <stdio.h>
 #include "lib_matrix.h"
 #include "lib_utils.h"
 #include "mpi.h"
