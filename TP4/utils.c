@@ -36,3 +36,15 @@ void check_correctness(struct vector* X) {
     }
     printf("Erreur : %E\n", max);
 }
+
+void check_correctness_2(struct vector* X, struct vector* ref) {
+    double precision, max = 0.;
+    // Vérification du résultat
+    for (int i = 0 ; i < X->nb_values ; i++) {
+        precision = fabs(vector_get(X, i) - vector_get(ref, i));
+        if (precision > max) {
+            max = precision;
+        }
+    }
+    printf("Erreur : %E\n", max);
+}

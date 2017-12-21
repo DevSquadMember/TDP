@@ -5,14 +5,6 @@
 #include "mpi.h"
 #include "perf.h"
 
-/**
- * Factorisation LU in-place :
- * la matrice A est modifiée sur place pour accueillir les matrices :
- * - L : triangulaire inférieure avec diagonale identité (la diagonale n'est pas stockée)
- * - U : triangulaire supérieure
- *
- * @param A la matrice A à factoriser en LU
- */
 void dgetf2(struct matrix* A) {
     for (int k = 0 ; k < A->nb_rows ; k++) {
         for (int i = k + 1 ; i < A->nb_rows ; i++) {
@@ -26,68 +18,175 @@ void dgetf2(struct matrix* A) {
     }
 }
 
-void dtrsm(char side,char uplo, char trans,char unit,int m,int n,int alpha, struct matrix* A, struct matrix* B){
-    int i,j,k;
+int dgetf2_complexity(int size) {
+    return size * size * (size - 1)/2;
+}
 
-    if(uplo == 'L'){
-        for(k=0;k<n;k++){
-            for(i=0;i<m;i++){
-                for(j=0;j<i;j++){
-                    matrix_set(B,i,k, matrix_get(B,i,k)-matrix_get(A,i,j)*matrix_get(B,j,k));
+void MPI_dgetf2(struct matrix* A) {
+    int rank, size, current;
+    double diag, value;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    for (int k = 0 ; k < A->nb_rows ; k++) {
+        int col = (k-rank)/size;
+
+        current = k%size;
+        if (rank == current) {
+            diag = matrix_get(A, k, col);
+        }
+        MPI_Bcast(&diag, 1, MPI_DOUBLE, current, MPI_COMM_WORLD);
+
+        for (int i = k + 1 ; i < A->nb_rows ; i++) {
+            if (rank == current) {
+                value = matrix_setdiv(A, i, col, diag);
+            }
+            MPI_Bcast(&value, 1, MPI_DOUBLE, current, MPI_COMM_WORLD);
+
+            int begin = (int) floor(1.0 * (k + size - rank) / size);
+            for (int j = begin ; j < A->nb_cols ; j++) {
+                matrix_setsub(A, i, j, value * matrix_get(A, k, j));
+            }
+        }
+    }
+}
+
+void dtrsm(char side, char uplo, char trans, char unit, int m, int n, int alpha, struct matrix* A, struct matrix* B) {
+    int i, j, k;
+
+    if (uplo == 'L') {
+        for (k = 0 ; k < n ; k++) {
+            for (i = 0 ; i < m ; i++) {
+                for (j = 0 ; j < i ; j++) {
+                    matrix_setsub(B, i, k, matrix_get(A, i, j) * matrix_get(B, j, k));
                 }
-                if(unit != 'U'){
-                    matrix_setdiv(B,i,k,matrix_get(A,i,i));
+                if (unit != 'U') {
+                    matrix_setdiv(B, i, k, matrix_get(A, i, i));
                 }
             }
         }
     } else {
-        for(k=0;k<n;k++){
-            for(i=m-1;i>0;i--){
-                for(j=i;j<m;j--){
-                    matrix_set(B,k,i,matrix_get(B,k,i)-matrix_get(A,i,j)*matrix_get(B,k,j));
+        for (k = 0 ; k < n ; k++) {
+            for (i = m-1 ; i > 0 ; i--) {
+                for (j = i ; j < m ; j++) {
+                    matrix_setsub(B, k, i, matrix_get(A, i, j) * matrix_get(B, k, j));
                 }
-                if(unit != 'U'){
-                    matrix_setdiv(B,k,i,matrix_get(A,i,i));
+                if (unit != 'U') {
+                    matrix_setdiv(B, k, i, matrix_get(A, i, i));
                 }
             }
         }
     }
 }
 
-void dgemm(char transa, char transb, int M, int N, int K,double alpha,struct matrix* A, struct matrix* B, double beta, struct matrix* C){
-  int i,j,k;
-
-  for(i=0;i<M;i++){
-    for(j=0;j<N;j++){
-      matrix_set(C,i,j,beta*matrix_get(C,i,j));
-      for(k=0;k<K;k++){
-	matrix_set(C,i,j,alpha*matrix_get(A,i,k)*matrix_get(B,k,j));
-      }
+void dgemm(char transa, char transb, int M, int N, int K, double alpha, struct matrix* A, struct matrix* B, double beta, struct matrix* C) {
+    for (int i = 0 ; i < M ; i++) {
+        for (int j = 0 ; j < N ; j++) {
+            matrix_setmul(C, i, j, beta);
+            for (int k = 0 ; k < K ; k++) {
+                matrix_set(C, i, j, alpha * matrix_get(A, i, k) * matrix_get(B, k, j));
+            }
+        }
     }
-  }
 }
 
-void dgetrf(struct matrix* A){
-  int bloc_length = 10;
-  int nb_blocs = (A->nb_cols)/10;
-  if (nb_blocs == 1){
-    dgetf2(A);
-  } else {
-    struct matrix* LuBloc,TrsmVt,TrsmHz,GemmBloc;
-    for(i=0;i<nb_blocs;i++){
-      
-      matrix_sub(LuBloc, bloc_length, bloc_length, i*bloc_length, i*bloc_length, A);
-      matrix_sub(TrsmVt, bloc_length, A->nb_rows - bloc_length*(i+1), i*bloc_length, (i+1)*bloc_length, A);
-      matrix_sub(TrsmHz, A->nb_cols - bloc_length*(i+1), bloc_length, (i+1)*bloc_length, i*bloc_length, A););
-      matrix_sub(GemmBloc, A->nb_cols - bloc_length*(i+1), A->nb_cols - bloc_length*(i+1), (i+1)*bloc_length, (i+1)*bloc_length, A);
-      
-      dgetf2(LuBloc);
+void dgetrf(struct matrix* A) {
+    int bloc_length = 4;//10;
+    int nb_blocs = (int) ceil(1. * A->nb_cols / bloc_length);
+    if (nb_blocs == 1) {
+        dgetf2(A);
+    } else {
+        printf("NB BLOCS : %d\n", nb_blocs);
+        struct matrix LuBloc, TrsmVt, TrsmHz, GemmBloc;
+        for (int i = 0 ; i < nb_blocs ; i++) {
+            printf("ROUND %d\n", i);
+            matrix_sub(&LuBloc, bloc_length, bloc_length, i*bloc_length, i*bloc_length, A);
+            matrix_sub(&TrsmVt, bloc_length, A->nb_rows - bloc_length*(i+1), i*bloc_length, (i+1)*bloc_length, A);
+            matrix_sub(&TrsmHz, A->nb_cols - bloc_length*(i+1), bloc_length, (i+1)*bloc_length, i*bloc_length, A);
+            matrix_sub(&GemmBloc, A->nb_cols - bloc_length*(i+1), A->nb_cols - bloc_length*(i+1), (i+1)*bloc_length, (i+1)*bloc_length, A);
 
-      dtrsm('a', 'L', 'a', 'a', bloc_length, A->nb_cols - bloc_length*(i+1),1, LuBloc, TrsmHz);
-      dtrsm('a', 'U', 'a', 'a', bloc_length, A->nb_cols - bloc_length*(i+1),1, LuBloc, TrsmVt);
+            printf("\nLuBloc \n");
+            matrix_show(&LuBloc);
 
-      dgemm('a', 'a', bloc_length, bloc_length, A->nb_rows - bloc_length*(i+1), 1, TrsmVt, TrsmHz, 1, GemmBloc);
-		 
+            printf("\nTrsmVt \n");
+            matrix_show(&TrsmVt);
+
+            printf("\nTrsmHz \n");
+            matrix_show(&TrsmHz);
+
+            printf("\nGemmbloc \n");
+            matrix_show(&GemmBloc);
+
+            printf("DGETF2\n");
+            dgetf2(&LuBloc);
+
+            printf("DTRSM\n");
+            dtrsm('a', 'L', 'a', 'U', bloc_length, A->nb_cols - bloc_length*(i+1), 1, &LuBloc, &TrsmHz);
+            printf("\nAFFFFTTTER --- TrsmHz \n");
+            matrix_show(&TrsmHz);
+            printf("TWO\n");
+            dtrsm('a', 'U', 'a', 'U', bloc_length, A->nb_cols - bloc_length*(i+1), 1, &LuBloc, &TrsmVt);
+            printf("\nAFFFFTTTER --- TrsmVt \n");
+            matrix_show(&TrsmVt);
+
+            printf("DGEMM\n");
+            //dgemm('a', 'a', bloc_length, bloc_length, A->nb_rows - bloc_length*(i+1), 1, &TrsmVt, &TrsmHz, 1, &GemmBloc);
+
+            printf("\nGemmbloc \n");
+            matrix_show(&GemmBloc);
+        }
+    }
+}
+
+void MPI_dgetrf(struct matrix* A) {
+    int size;
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    int bloc_length = 1;
+    int nb_blocs = (int) ceil(1. * A->nb_cols / bloc_length);
+    if (nb_blocs == 1) {
+        dgetf2(A);
+    } else {
+        printf("NB BLOCS : %d\n", nb_blocs);
+        struct matrix LuBloc, TrsmVt, TrsmHz, GemmBloc;
+        for (int i = 0 ; i < nb_blocs ; i++) {
+            printf("ROUND %d\n", i);
+            matrix_sub(&LuBloc, bloc_length, bloc_length, i*bloc_length, i*bloc_length, A);
+            matrix_sub(&TrsmVt, bloc_length, A->nb_rows - bloc_length*(i+1), i*bloc_length, (i+1)*bloc_length, A);
+            matrix_sub(&TrsmHz, A->nb_cols - bloc_length*(i+1), bloc_length, (i+1)*bloc_length, i*bloc_length, A);
+            matrix_sub(&GemmBloc, A->nb_cols - bloc_length*(i+1), A->nb_cols - bloc_length*(i+1), (i+1)*bloc_length, (i+1)*bloc_length, A);
+
+            printf("\nLuBloc \n");
+            matrix_show(&LuBloc);
+
+            printf("\nTrsmVt \n");
+            matrix_show(&TrsmVt);
+
+            printf("\nTrsmHz \n");
+            matrix_show(&TrsmHz);
+
+            printf("\nGemmbloc \n");
+            matrix_show(&GemmBloc);
+
+            printf("DGETF2\n");
+            dgetf2(&LuBloc);
+
+            printf("DTRSM\n");
+            dtrsm('a', 'L', 'a', 'a', bloc_length, A->nb_cols - bloc_length*(i+1), 1, &LuBloc, &TrsmHz);
+            printf("\nAFFFFTTTER --- TrsmHz \n");
+            matrix_show(&TrsmHz);
+            printf("TWO\n");
+            dtrsm('a', 'U', 'a', 'U', bloc_length, A->nb_cols - bloc_length*(i+1), 1, &LuBloc, &TrsmVt);
+            printf("\nAFFFFTTTER --- TrsmVt \n");
+            matrix_show(&TrsmVt);
+
+            printf("DGEMM\n");
+            //dgemm('a', 'a', bloc_length, bloc_length, A->nb_rows - bloc_length*(i+1), 1, &TrsmVt, &TrsmHz, 1, &GemmBloc);
+
+            printf("\nGemmbloc \n");
+            matrix_show(&GemmBloc);
+        }
+    }
 }
 
 /**
@@ -115,6 +214,10 @@ void matrix_solve(struct matrix* A, struct vector* X, struct vector* B) {
         }
         vector_set(X, i, (vector_get(X, i) - sum)/matrix_get(A, i, i));
     }
+}
+
+int matrix_solve_complexity(int size) {
+    return 2*size*(size-1) + 3*size;
 }
 
 int get_index(int i, int rank, int size) {
@@ -207,13 +310,15 @@ void solve_parallel(struct matrix* A, struct vector* X, struct vector* B) {
     perf(&p_begin);
 
     // Décomposition LU
-    // TODO
+    MPI_dgetf2(&local_a);
 
     perf(&p_end);
+
     if (rank == 0) {
         perf_diff(&p_begin, &p_end);
         printf("Décomposition LU parallèle sur matrice de taille %d %d : ", A->nb_rows, A->nb_cols);
         perf_printmicro(&p_end);
+        printf("Performance : %lf flop/s\n", perf_mflops(&p_end, dgetf2_complexity(A->nb_rows)));
     }
 
     perf(&p_begin);
@@ -226,6 +331,7 @@ void solve_parallel(struct matrix* A, struct vector* X, struct vector* B) {
         perf_diff(&p_begin, &p_end);
         printf("Descente-remontée parallèle sur matrice de taille %d %d : ", A->nb_rows, A->nb_cols);
         perf_printmicro(&p_end);
+        printf("Performance : %lf flop/s\n", perf_mflops(&p_end, matrix_solve_complexity(A->nb_rows)));
     }
 
     perf(&p_begin);
@@ -245,7 +351,7 @@ void solve_parallel(struct matrix* A, struct vector* X, struct vector* B) {
     vector_free(&local_b);
 }
 
-void solve_sequential(struct matrix* A, struct vector* X, struct vector* B) {
+void solve_sequential_dgetf2(struct matrix* A, struct vector* X, struct vector* B) {
     struct timeval p_begin, p_end;
     perf(&p_begin);
 
@@ -256,6 +362,37 @@ void solve_sequential(struct matrix* A, struct vector* X, struct vector* B) {
     perf_diff(&p_begin, &p_end);
     printf("DGETF2 séquentiel sur matrice de taille %d %d : ", A->nb_rows, A->nb_cols);
     perf_printmicro(&p_end);
+    printf("Performance : %lf flop/s\n", perf_mflops(&p_end, dgetf2_complexity(A->nb_rows)));
+
+    ///printf("Matrix A is now :\n");
+    ///matrix_show(A);
+
+    perf(&p_begin);
+
+    // Descente-remontée
+    matrix_solve(A, X, B);
+
+    perf(&p_end);
+    perf_diff(&p_begin, &p_end);
+    printf("Descente-remontée séquentielle sur matrice de taille %d %d : ", A->nb_rows, A->nb_cols);
+    perf_printmicro(&p_end);
+    printf("Performance : %lf flop/s\n", perf_mflops(&p_end, matrix_solve_complexity(A->nb_rows)));
+}
+
+void solve_sequential_dgetrf(struct matrix* A, struct vector* X, struct vector* B) {
+    struct timeval p_begin, p_end;
+    perf(&p_begin);
+
+    // DGETRF
+    dgetrf(A);
+
+    perf(&p_end);
+    perf_diff(&p_begin, &p_end);
+    printf("DGETF2 séquentiel sur matrice de taille %d %d : ", A->nb_rows, A->nb_cols);
+    perf_printmicro(&p_end);
+
+    ///printf("Matrix A is now :\n");
+    ///matrix_show(A);
 
     perf(&p_begin);
 

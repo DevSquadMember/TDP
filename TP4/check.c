@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <assert.h>
 #include "lib_utils.h"
 #include "lib_matrix.h"
 #include "mpi.h"
@@ -48,7 +47,7 @@ void check_trsm_example() {
     matrix_show(&t);
 
     perf(&perf_begin);
-    dtrsm('D', 'L', 'N', 'U', 3, 6, 1, &m, 3, &t, 3);
+    dtrsm('D', 'L', 'N', 'U', 3, 6, 1, &m, &t);
     perf(&perf_end);
 
     perf_diff(&perf_begin, &perf_end);
@@ -147,7 +146,8 @@ void check_solve_seq(int n) {
         vector_show(&b);
     }
 
-    solve_sequential(&m, &x, &b);
+    solve_sequential_dgetf2(&m, &x, &b);
+    //solve_sequential_dgetrf(&m, &x, &b);
 
     // Vérification du résultat
     check_correctness(&x);
@@ -159,18 +159,14 @@ void check_solve_seq(int n) {
 }
 
 void check_solve_par(int n) {
-    struct matrix m;
+    struct matrix a;
     struct vector x, b;
-    matrix_init(&m, n, n);
+    matrix_init(&a, n, n);
     vector_init(&x, n);
     vector_init(&b, n);
 
     if (rank == 0) {
-        /*for (int i = 0 ; i < m.nb_cols ; i++) {
-            for (int j = 0 ; j < m.nb_rows ; j++) {
-                matrix_set(&m, j, i, i%size + 1);
-            }
-        }*/
+        matrix_load(&a);
 
         /*1.000000 1.000000 0.000000 0.000000 0.000000 0.000000 0.000000 0.000000
         1.000000 -1.000000 2.000000 0.000000 0.000000 0.000000 0.000000 0.000000
@@ -180,7 +176,7 @@ void check_solve_par(int n) {
         1.000000 1.000000 1.000000 1.000000 1.000000 -5.000000 6.000000 0.000000
         1.000000 1.000000 1.000000 1.000000 1.000000 1.000000 -6.000000 7.000000
         1.000000 1.000000 1.000000 1.000000 1.000000 1.000000 1.000000 -7.000000*/
-        for (int i = 0 ; i < m.nb_cols ; i++) {
+        /*for (int i = 0 ; i < m.nb_cols ; i++) {
             for (int j = 0 ; j < m.nb_rows ; j++) {
                 double value;
                 if (i < j) {
@@ -196,7 +192,7 @@ void check_solve_par(int n) {
                 }
                 matrix_set(&m, j, i, value);
             }
-        }
+        }*/
 
         vector_load(&b);
         if (n < MAX_SIZE_TO_PRINT) {
@@ -204,11 +200,11 @@ void check_solve_par(int n) {
             vector_show(&b);
 
             printf("\nMatrix A\n");
-            matrix_show(&m);
+            matrix_show(&a);
         }
     }
 
-    solve_parallel(&m, &x, &b);
+    solve_parallel(&a, &x, &b);
 
     if (rank == 0) {
         // Vérification du résultat
@@ -220,7 +216,7 @@ void check_solve_par(int n) {
         }
     }
 
-    matrix_free(&m);
+    matrix_free(&a);
     vector_free(&x);
     vector_free(&b);
 }
