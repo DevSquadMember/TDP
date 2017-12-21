@@ -1,99 +1,38 @@
-#include <stdlib.h>
-#include <stdio.h>
 #include "utils.h"
+#include "lib_utils.h"
+#include <math.h>
+#include <printf.h>
 
-/** MATRIX **/
-
-void matrix_init(struct matrix* matrix, int nb_cols, int nb_rows) {
-    matrix->nb_cols = nb_cols;
-    matrix->nb_rows = nb_rows;
-    matrix->ld = nb_rows;
-    matrix->values = malloc(sizeof(double) * nb_cols * nb_rows);
-}
-
-void matrix_sub(struct matrix* matrix, int nb_cols, int nb_rows, int i, int j, struct matrix* initial) {
-    matrix->nb_cols = nb_cols;
-    matrix->nb_rows = nb_rows;
-    matrix->ld = initial->ld;
-    matrix->values = &(initial->values[i * initial->ld + j]);
-}
-
-double matrix_get(struct matrix* matrix, int i, int j) {
-    return matrix->values[j * matrix->ld + i];
-}
-
-void matrix_set(struct matrix* matrix, int i, int j, double value) {
-    matrix->values[j * matrix->ld + i] = value;
-}
-
-double matrix_setadd(struct matrix* matrix, int i, int j, double value) {
-    double* res = &(matrix->values[j * matrix->ld + i]);
-    (*res) += value;
-    return *res;
-}
-
-double matrix_setsub(struct matrix* matrix, int i, int j, double value) {
-    double* res = &(matrix->values[j * matrix->ld + i]);
-    (*res) -= value;
-    return *res;
-}
-
-double matrix_setmul(struct matrix* matrix, int i, int j, double value) {
-    double* res = &(matrix->values[j * matrix->ld + i]);
-    (*res) *= value;
-    return *res;
-}
-
-double matrix_setdiv(struct matrix* matrix, int i, int j, double value) {
-    double* res = &(matrix->values[j * matrix->ld + i]);
-    (*res) /= value;
-    return *res;
-}
-
-void matrix_show(struct matrix* matrix) {
-    for (int i = 0 ; i < matrix->nb_rows ; i++) {
-        for (int j = 0 ; j < matrix->nb_cols ; j++) {
-            printf("%lf ", matrix->values[j*matrix->ld + i]);
+void matrix_load(struct matrix* m) {
+    double value;
+    for (int i = 0 ; i < m->nb_rows ; i++) {
+        for (int j = 0 ; j < m->nb_cols ; j++) {
+            if (j == 0) {
+                value = 1;
+            } else if (j == i+1) {
+                value = i+1;
+            } else {
+                value = 0;
+            }
+            matrix_set(m, i, j, value);
         }
-        printf("\n");
     }
 }
 
-void matrix_free(struct matrix* matrix) {
-    if (matrix->ld == matrix->nb_rows) {
-        free(matrix->values);
+void vector_load(struct vector* v) {
+    for (int i = 0 ; i < v->nb_values ; i++) {
+        vector_set(v, i, (i+1) % (v->nb_values) + 1);
     }
 }
 
-/** VECTOR **/
-
-void vector_init(struct vector* vector, int nb_values) {
-    vector->nb_values = nb_values;
-    vector->ld = 1;
-    vector->values = malloc(sizeof(double) * nb_values);
-}
-
-void vector_set(struct vector* vector, int i, double value) {
-    vector->values[vector->ld * i] = value;
-}
-
-double vector_setsub(struct vector* vector, int i, double value) {
-    double* res = &(vector->values[vector->ld * i]);
-    (*res) -= value;
-    return *res;
-}
-
-double vector_get(struct vector* vector, int i) {
-    return vector->values[vector->ld * i];
-}
-
-void vector_show(struct vector* vector) {
-    for (int i = 0 ; i < vector->nb_values ; i++) {
-        printf("%lf ", vector->values[vector->ld * i]);
+void check_correctness(struct vector* X) {
+    double precision, max = 0.;
+    // Vérification du résultat
+    for (int i = 0 ; i < X->nb_values ; i++) {
+        precision = fabs(vector_get(X, i) - 1.0);
+        if (precision > max) {
+            max = precision;
+        }
     }
-    printf("\n");
-}
-
-void vector_free(struct vector* vector) {
-    free(vector->values);
+    printf("Erreur : %E\n", max);
 }

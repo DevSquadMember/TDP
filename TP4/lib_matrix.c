@@ -1,8 +1,9 @@
 #include <math.h>
 #include <printf.h>
 #include "lib_matrix.h"
-#include "utils.h"
+#include "lib_utils.h"
 #include "mpi.h"
+#include "perf.h"
 
 /**
  * Factorisation LU in-place :
@@ -124,4 +125,109 @@ void MPI_matrix_solve(struct matrix* A, struct vector* X, struct vector* B) {
             vector_set(X, index, (vector_get(X, index) - sum) / matrix_get(A, i, index));
         }
     }
+}
+
+void solve_parallel(struct matrix* A, struct vector* X, struct vector* B) {
+    int rank, size;
+    struct timeval p_begin, p_end;
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    struct matrix local_a;
+    struct vector local_x, local_b;
+    int m_size = A->nb_rows;
+
+    int local_size = m_size/size;
+    matrix_init(&local_a, local_size, m_size);
+    vector_init(&local_x, local_size);
+    vector_init(&local_b, local_size);
+
+    // Type col : colonne de la matrice à envoyer une par une sur chaque processeur pour la matrice A
+    MPI_Datatype col;
+    MPI_Type_vector(local_size, m_size, m_size*size, MPI_DOUBLE, &col);
+    MPI_Type_create_resized(col, 0, m_size * sizeof(double), &col);
+    MPI_Type_commit(&col);
+
+    // Type cell : case du vecteur à envoyer une par une sur chaque processeur pour les vecteurs
+    MPI_Datatype cell;
+    MPI_Type_vector(local_size, 1, size, MPI_DOUBLE, &cell);
+    MPI_Type_create_resized(cell, 0, 1 * sizeof(double), &cell);
+    MPI_Type_commit(&cell);
+
+    perf(&p_begin);
+
+    // Envoi des colonnes de la matrice A et des cases du vecteur B
+    MPI_Scatter(A->values, 1, col, local_a.values, m_size*local_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Scatter(B->values, 1, cell, local_b.values, local_size, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    perf(&p_end);
+    if (rank == 0) {
+        perf_diff(&p_begin, &p_end);
+        printf("Scatter parallèle sur matrice de taille %d %d : ", A->nb_rows, A->nb_cols);
+        perf_printmicro(&p_end);
+    }
+
+    perf(&p_begin);
+
+    // Décomposition LU
+    // TODO
+
+    perf(&p_end);
+    if (rank == 0) {
+        perf_diff(&p_begin, &p_end);
+        printf("Décomposition LU parallèle sur matrice de taille %d %d : ", A->nb_rows, A->nb_cols);
+        perf_printmicro(&p_end);
+    }
+
+    perf(&p_begin);
+
+    // Descente-remontée LU
+    MPI_matrix_solve(&local_a, &local_x, &local_b);
+
+    perf(&p_end);
+    if (rank == 0) {
+        perf_diff(&p_begin, &p_end);
+        printf("Descente-remontée parallèle sur matrice de taille %d %d : ", A->nb_rows, A->nb_cols);
+        perf_printmicro(&p_end);
+    }
+
+    perf(&p_begin);
+
+    // Récupération du résultat dans le vecteur X
+    MPI_Gather(local_x.values, local_size, MPI_DOUBLE, X->values, 1, cell, 0, MPI_COMM_WORLD);
+
+    perf(&p_end);
+    if (rank == 0) {
+        perf_diff(&p_begin, &p_end);
+        printf("Gather parallèle sur matrice de taille %d %d : ", A->nb_rows, A->nb_cols);
+        perf_printmicro(&p_end);
+    }
+
+    matrix_free(&local_a);
+    vector_free(&local_x);
+    vector_free(&local_b);
+}
+
+void solve_sequential(struct matrix* A, struct vector* X, struct vector* B) {
+    struct timeval p_begin, p_end;
+    perf(&p_begin);
+
+    // DGETF2
+    dgetf2(A);
+
+    perf(&p_end);
+    perf_diff(&p_begin, &p_end);
+    printf("DGETF2 séquentiel sur matrice de taille %d %d : ", A->nb_rows, A->nb_cols);
+    perf_printmicro(&p_end);
+
+    perf(&p_begin);
+
+    // Descente-remontée
+    matrix_solve(A, X, B);
+
+    perf(&p_end);
+    perf_diff(&p_begin, &p_end);
+    printf("Descente-remontée séquentielle sur matrice de taille %d %d : ", A->nb_rows, A->nb_cols);
+    perf_printmicro(&p_end);
 }
