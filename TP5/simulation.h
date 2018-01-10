@@ -3,8 +3,8 @@
 
 void generate_particules(int nb_particules, char* filename);
 
-void launch_sequential_simulation(int nb_iterations, int rendering, char* filename);
+void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size, int rendering);
 
-void launch_sequential_simulation_blocs(int nb_iterations, int rendering, char* filename);
+void launch_sequential_simulation_blocs(int rendering, char* filename);
 
 #endif //TDP_SIMULATION_H

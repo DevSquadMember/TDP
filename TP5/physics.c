@@ -1,9 +1,23 @@
 #include <math.h>
 #include <limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "physics.h"
-//#define G 1
 #define G 6.67e-11
+
+void box_init(box* box, int nb_planets) {
+    box->pos.x = 0.;
+    box->pos.y = 0.;
+    box->size = 0;
+    box->force = malloc(sizeof(point) * nb_planets);
+    box->nb_planets = nb_planets;
+    box->planets = malloc(sizeof(planet) * nb_planets);
+}
+
+void box_free(box* box) {
+    free(box->force);
+    free(box->planets);
+}
 
 void copy_planet(planet* src, planet* dest) {
     dest->acc.x = src->acc.x;
@@ -95,17 +109,17 @@ void calcul_force_first_loop(planet* myplanets, struct planet_handle* bufplanets
 }
 
 void calcul_force_own(box* box){
-    int i,j,sidex,sidey;
-    double distx,disty,angle,force,sqdist,dist;
+    int i, j, sidex, sidey;
+    double distx, disty, angle, force, sqdist;
 
-    for(i=0; i<box->planet_length;i++){
-        for(j=0;j<box->planet_length;j++){
+    for(i=0; i<box->nb_planets;i++){
+        for(j=0;j<box->nb_planets;j++){
             if(i!=j){
 
                 sidex = sidey = 1;
 
-                distx = box->planet_list[j].pos.x - box->planet_list[i].pos.x;
-                disty = box->planet_list[j].pos.y - box->planet_list[i].pos.y;
+                distx = box->planets[j].pos.x - box->planets[i].pos.x;
+                disty = box->planets[j].pos.y - box->planets[i].pos.y;
 
                 if(distx < 0){
                     distx = -distx;
@@ -119,11 +133,10 @@ void calcul_force_own(box* box){
                 angle = (distx == 0) ? M_PI/2 : atan(disty/distx);
 
                 sqdist = pow(distx,2)+pow(disty,2);
-                dist = sqrt(sqdist);
-                force = (G*box->planet_list[i].mass*box->planet_list[j].mass)/sqdist;
+                force = (G*box->planets[i].mass*box->planets[j].mass)/sqdist;
 
-                box->forcebuf[i].x += sidex*force*cos(angle);
-                box->forcebuf[i].y += sidey*force*sin(angle);
+                box->force[i].x += sidex*force*cos(angle);
+                box->force[i].y += sidey*force*sin(angle);
             }
         }
     }
@@ -170,6 +183,7 @@ void calcul_force(planet* myplanets, struct planet_handle* bufplanets,int size, 
 void calcul_force_other(planet* myplanets, planet* planets, int size, point* forcebuf, double* dmin){
     int i,j,sidex,sidey;
     double distx,disty,angle,force,sqdist,dist;
+
     for (i=0; i<size;i++){
         for(j=0;j<size;j++){
 
@@ -204,40 +218,40 @@ void calcul_force_other(planet* myplanets, planet* planets, int size, point* for
 }
 
 void calcul_force_two_boxes(box* my_box, box* remote_box,double threshold){
-  double dist = sqrt(pow(my_box->center.pos.x - remote_box->center.pos.x,2)+pow(my_box->center.pos.y - remote_box->center.pos.y,2))
-    if (remote_box->box_length/dist > threshold){
-      calcul_force_center(&(remote_box->center),my_box->planet_list,my_box->planet_length,my_box->forcebuf);
+    double dist = sqrt(pow(my_box->center.pos.x - remote_box->center.pos.x, 2) + pow(my_box->center.pos.y - remote_box->center.pos.y, 2));
+    if (remote_box->size/dist > threshold){
+        calcul_force_center(&(remote_box->center),my_box->planets,my_box->nb_planets,my_box->force);
     } else {
-      calcul_force_complete(my_box->planet_list,my_box->planet_length,remote_box->planet_list,remote_box->planet_length,my_box->forcebuf);
+        calcul_force_complete(my_box->planets,my_box->nb_planets,remote_box->planets,remote_box->nb_planets,my_box->force);
     }
 }
 
 void calcul_force_center(planet* center, planet* myplanets, int size, point* forcebuf){
-  int i,sidex,sidey;
-  double distx,disty,angle,force,dist,sqdist;
-  for( i = 0 ; i < size ; i++ ){
-    sidex = sidey = 1;
-    distx = center->pos.x-myplanets[i].pos.x;
-    disty = center->pos.y-myplanets[i].pos.y;
+    int i, sidex, sidey;
+    double distx, disty, angle, force, dist, sqdist;
+    for( i = 0 ; i < size ; i++ ){
+        sidex = sidey = 1;
+        distx = center->pos.x-myplanets[i].pos.x;
+        disty = center->pos.y-myplanets[i].pos.y;
 
-    if(distx < 0){
-      distx = -distx;
-      sidex = -1;
+        if(distx < 0){
+            distx = -distx;
+            sidex = -1;
+        }
+        if(disty < 0){
+            disty = -disty;
+            sidey = -1;
+        }
+        angle = (distx == 0) ? M_PI/2 : atan(disty/distx);
+
+        sqdist = pow(distx, 2) + pow(disty, 2);
+        dist = sqrt(sqdist);
+        force = (G * myplanets[i].mass * center->mass) / sqdist;
+
+        forcebuf[i].x = sidex*force*cos(angle);
+        forcebuf[i].y = sidey*force*sin(angle);
     }
-    if(disty < 0){
-      disty = -disty;
-      sidey = -1;
-    }
-    angle = (distx == 0) ? M_PI/2 : atan(disty/distx);
-    
-    sqdist = pow(distx, 2) + pow(disty, 2);
-    dist = sqrt(sqdist);
-    force = (G * myplanets[i].mass * planets[j].mass) / sqdist;
-    
-    forcebuf[i].pos.x = sidex*force*cos(angle);
-    forcebuf[i].pos.y = sidey*force*sin(angle);
-  }
-} 
+}
 
 void calcul_force_complete(planet* myplanets, int sizea, planet* planets,int sizeb, point* forcebuf1) {
     int i, j, sidex, sidey;
@@ -277,15 +291,15 @@ void calcul_force_complete(planet* myplanets, int sizea, planet* planets,int siz
 
 /** Calcul du centre de masse **/
 void calcul_center_mass(box* box){
-  box->center.mass = 0;
-  box->center.pos.x = 0;
-  box->center.pos.y = 0;
-  int i;
-  for (i = 0 ; i < size ; i++){
-    box->center.mass += box->planet_list[i].mass;
-    box->center.pos.x += box->planet_list[i].pos.x*box->planet_list[i].mass;
-    box->center.pos.y += box->planet_list[i].pos.y*box->planet_list[i].mass;
-  }
-  box->center.pos.x /= box->center.mass;
-  box->center.pos.y /= box->center.mass;
+    box->center.mass = 0;
+    box->center.pos.x = 0;
+    box->center.pos.y = 0;
+    int i;
+    for (i = 0 ; i < box->nb_planets ; i++){
+        box->center.mass += box->planets[i].mass;
+        box->center.pos.x += box->planets[i].pos.x*box->planets[i].mass;
+        box->center.pos.y += box->planets[i].pos.y*box->planets[i].mass;
+    }
+    box->center.pos.x /= box->center.mass;
+    box->center.pos.y /= box->center.mass;
 }

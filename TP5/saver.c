@@ -3,12 +3,17 @@
 #include "saver.h"
 
 #define FINAL_DATA_FILENAME "res.dat"
+#define FINAL_BLOCS_FILENAME "res-bloc.dat"
 #define DATA_FILENAME "res.dat%d"
 
 FILE* res_file = NULL;
+FILE* res_file1 = NULL;
+FILE* res_file2 = NULL;
 int counter = 0;
+int counter1 = 0;
+int counter2 = 0;
 
-void render_seq(int nb_total_planets, char* title) {
+void render_plot(int nb_total_planets, char*title, char* filename, char* resname) {
     char args[20] = "";
     char final_title[100];
     sprintf(final_title, "%s en %d itérations", title, counter-1);
@@ -19,11 +24,11 @@ void render_seq(int nb_total_planets, char* title) {
     // exécution de la commande gnuplot
     fprintf(f, "set term png\n");
     fprintf(f, "set title \"%s\"\n", final_title);
-    fprintf(f, "set output \"res.png\"\n");
+    fprintf(f, "set output \"%s\"\n", resname);
     fprintf(f, "plot ");
     for (int i = 0 ; i < nb_total_planets ; i++) {
         sprintf(args, "%d:%d", 2*(i+1), 2*(i+1) + 1);
-        fprintf(f, "\"%s\" using %s title \"Planète %d\"with lines", FINAL_DATA_FILENAME, args, (i+1));
+        fprintf(f, "\"%s\" using %s title \"Planète %d\"with lines", filename, args, (i+1));
         if (i < nb_total_planets - 1) {
             fprintf(f, ", ");
         }
@@ -34,7 +39,11 @@ void render_seq(int nb_total_planets, char* title) {
     sleep(1);
     pclose(f);
 
-    printf("Graphe généré et sauvegardé dans le fichier res.png\n");
+    printf("Graphe généré et sauvegardé dans le fichier %s\n", resname);
+}
+
+void render_seq(int nb_total_planets, char* title) {
+    render_plot(nb_total_planets, title, FINAL_DATA_FILENAME, "res.png");
 }
 
 // join file1 file2 | join - file3 > output
@@ -51,14 +60,14 @@ void render(int nb_procs, int nb_total_planets, char* title) {
                 sprintf(command, "%s | join - %s", command, filename);
             }
         }
-        sprintf(command, "%s > %s\n", command, FINAL_DATA_FILENAME);
+        sprintf(command, "%s > %s\n", command, FINAL_BLOCS_FILENAME);
 
         FILE *f = popen(command, "r");
         sleep(1);
         pclose(f);
     }
 
-    render_seq(nb_total_planets, title);
+    render_plot(nb_total_planets, title, FINAL_BLOCS_FILENAME, "res-bloc.png");
 }
 
 void save_seq(planet* planets, int nb_planets) {
@@ -74,19 +83,29 @@ void save_seq(planet* planets, int nb_planets) {
 }
 
 void save(int proc_id, planet* planets, int nb_planets) {
-    if (res_file == NULL) {
+    FILE** file = proc_id == 1 ? &res_file1 : &res_file2;
+    int* c = proc_id == 1 ? &counter1 : &counter2;
+    if (*file == NULL) {
         char filename[10];
         sprintf(filename, DATA_FILENAME, proc_id);
-        res_file = fopen(filename, "w");
+        *file = fopen(filename, "w");
     }
-    fprintf(res_file, "%d ", counter);
+    fprintf(*file, "%d ", *c);
     for (int i = 0 ; i < nb_planets ; i++) {
-        fprintf(res_file, "%lf %lf ", planets[i].pos.x, planets[i].pos.y);
+        fprintf(*file, "%lf %lf ", planets[i].pos.x, planets[i].pos.y);
     }
-    fprintf(res_file, "\n");
-    counter++;
+    fprintf(*file, "\n");
+    *c = *c+1;
 }
 
 void save_close() {
-    fclose(res_file);
+    if (res_file != NULL) {
+        fclose(res_file);
+    }
+    if (res_file1 != NULL) {
+        fclose(res_file1);
+    }
+    if (res_file2 != NULL) {
+        fclose(res_file2);
+    }
 }
