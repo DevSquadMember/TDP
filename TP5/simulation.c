@@ -10,7 +10,7 @@
 #define MAX_MASS 1000000000
 #define MIN_MASS 100
 
-#define THRESHOLD 10
+#define THRESHOLD 1000000
 
 void generate_particules(int nb_particules, char* filename) {
     FILE* file;
@@ -70,8 +70,8 @@ void generate_boxes(box* ref, box* boxes, int nb_boxes, int box_size, int nb_par
     printf("Generating boxes\n");
 
     // Initialisation des Box
-    for (int i = 0 ; i < nb_boxes ; i++) {
-        row = i*nb_boxes;
+    ///for (int i = 0 ; i < nb_boxes ; i++) {
+        row = 0;///i*nb_boxes;
         for (int j = 0 ; j < nb_boxes ; j++) {
             current = row + j;
             printf("Generating box n°%d - %d particules\n", current, nb_particules);
@@ -85,7 +85,7 @@ void generate_boxes(box* ref, box* boxes, int nb_boxes, int box_size, int nb_par
             // Génération des particules dans la Box
             box_generate_particules(&(boxes[current]), ref, &total, nb_particules);
         }
-    }
+    ///}
 }
 
 void fill_planets(planet* planets, int start, int end, planet *bloc) {
@@ -104,7 +104,7 @@ double compute_error(double ref, double val) {
         percent *= -1;
 
     if (error != 0.) {
-        printf("Valeur attendue : %lf, valeur calculée : %lf\n", ref, val);
+        printf("Valeur attendue : %lf (%e), valeur calculée : %lf (%e)\n", ref, ref, val, val);
         printf("Le pourcentage d'erreur est de : %e%%\n", percent);
     }
 
@@ -159,8 +159,10 @@ void check_boxes(box* ref, int nb_total_planets, box* boxes) {
  * @param rendering 1 = affichage des infos, 0 = mode silencieux
  */
 void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size, int rendering) {
-    int nb_total_boxes = nb_boxes * nb_boxes;
-    int nb_planets = nb_boxes * nb_boxes * nb_particules;
+    ///int nb_total_boxes = nb_boxes * nb_boxes;
+    int nb_total_boxes = nb_boxes;
+    ///int nb_planets = nb_boxes * nb_boxes * nb_particules;
+    int nb_planets = nb_boxes * nb_particules;
 
     if (rendering) {
         printf("Lancement de la simulation par boîtes\n");
@@ -191,6 +193,9 @@ void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size,
             boxes[i].force[j].x = 0;
             boxes[i].force[j].y = 0;
         }
+
+        // Calcul des forces du bloc
+        ///calcul_force_own(&(boxes[i]));
     }
 
     // Calcul des forces du bloc 1
@@ -201,6 +206,12 @@ void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size,
 
     // Calcul des intéractions
     calcul_force_two_boxes(&(boxes[0]), &(boxes[1]), THRESHOLD);
+
+    /**for (int i = 0 ; i < nb_boxes ; i++) {
+        for (int j = 0 ; j < nb_boxes ; j++) {
+            calcul_force_two_boxes(&(boxes[i]), &(boxes[j]), THRESHOLD);
+        }
+    }**/
 
     /** VÉRIFICATION DES DONNÉES **/
     check_boxes(&ref, nb_planets, boxes);
