@@ -70,7 +70,9 @@ void quad_tree_free(node* tree) {
         quad_tree_free(tree->nodes[i]);
     }
     box_free(&(tree->box));
-    free(tree->nodes);
+    if (tree->nb_children > 0) {
+        free(tree->nodes);
+    }
 }
 
 struct node* quad_tree_find_leaf(node* tree, int x, int y) {
