@@ -15,6 +15,6 @@ void load_boxes(box* ref, box* boxes, node* tree, int nb_boxes, int nb_total_box
 
 void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size, int rendering);
 
-void launch_sequential_simulation_box_on(box* ref, box* boxes, node* tree, int nb_boxes, int nb_particules, int rendering);
+void launch_sequential_simulation_box_on(box* ref, box* boxes, node* tree, int nb_boxes, int nb_particules, int rendering, int launch_all);
 
 #endif //TDP_SIMULATION_H

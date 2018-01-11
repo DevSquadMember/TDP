@@ -123,14 +123,12 @@ int main(int argc,char ** argv) {
     int world_size = WORLD_SIZE;
 
     int rendering = 1;
-    int generate_graph = 1;
-
-    //char* filename = TEST_FILE;
+    int launch_seq = 1;
 
     if (argc > 1) {
         nb_particles = atoi(argv[1]);
         if (argc > 2) {
-            rendering = atoi(argv[2]);
+            launch_seq = atoi(argv[2]);
         }
     }
 
@@ -179,8 +177,6 @@ int main(int argc,char ** argv) {
         boxes = malloc(sizeof(struct box) * nb_total_boxes);
         load_boxes(&ref_box, boxes, &tree, nb_blocs, nb_total_boxes, nb_particles, nb_total_planets, world_size, rendering);
         forces = malloc(sizeof(struct point) * ref_box.nb_planets);
-        /*box_init(&ref_box, nb_planets);
-        generate_boxes(&ref_box, boxes, size, world_size/size, nb_particles);*/
     }
 
     perf(&total_start);
@@ -197,7 +193,7 @@ int main(int argc,char ** argv) {
 
     /** CALCUL EN SÉQUENTIEL **/
     if (rank == 0) {
-        launch_sequential_simulation_box_on(&ref_box, boxes, &tree, nb_blocs, nb_particles, rendering);
+        launch_sequential_simulation_box_on(&ref_box, boxes, &tree, nb_blocs, nb_particles, rendering, launch_seq);
     }
     /** FIN DU CALCUL EN SÉQUENTIEL **/
 

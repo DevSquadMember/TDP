@@ -274,7 +274,7 @@ void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size,
 
     load_boxes(&ref, boxes, &tree, nb_boxes, nb_total_boxes, nb_particules, nb_planets, size, rendering);
 
-    launch_sequential_simulation_box_on(&ref, boxes, &tree, nb_boxes, nb_particules, rendering);
+    launch_sequential_simulation_box_on(&ref, boxes, &tree, nb_boxes, nb_particules, rendering, 1);
 
     for (int i = 0 ; i < nb_total_boxes ; i++) {
         box_free(&boxes[i]);
@@ -307,8 +307,9 @@ void get_leafs_and_compute(node** leafs, node* current, int *nb_leafs) {
  * @param nb_boxes nombre de boîtes
  * @param nb_particules nombre de particules par boîte
  * @param rendering 1 = affichage des infos, 0 = mode silencieux
+ * @param launch_all 1 = lancement de tous les tests en séquentiel, 0 = juste la référence
  */
-void launch_sequential_simulation_box_on(box* ref, box* boxes, node* tree, int nb_boxes, int nb_particules, int rendering) {
+void launch_sequential_simulation_box_on(box* ref, box* boxes, node* tree, int nb_boxes, int nb_particules, int rendering, int launch_all) {
     perf_t gen_start, gen_end, box_start, box_end, barnes_start, barnes_end;
 
     int nb_total_boxes = nb_boxes * nb_boxes;
@@ -332,66 +333,72 @@ void launch_sequential_simulation_box_on(box* ref, box* boxes, node* tree, int n
     perf(&gen_end);
 
     /** CALCUL DES DEUX BLOCS **/
-    perf(&box_start);
-
-    for (int i = 0; i < nb_total_boxes; i++) {
-        for (int j = 0 ; j < nb_particules ; j++) {
-            boxes[i].force[j].x = 0;
-            boxes[i].force[j].y = 0;
-        }
-
-        // Calcul des forces du bloc
-        calcul_force_own(&(boxes[i]));
-    }
-
-    for (int i = 0 ; i < nb_boxes ; i++) {
-        for (int j = 0 ; j < nb_boxes ; j++) {
-            if (i != j) {
-                calcul_force_two_boxes(&(boxes[i]), &(boxes[j]), THRESHOLD);
-            }
-        }
-    }
-
-    perf(&box_end);
-
-    /** CALCUL AVEC BARNES-HUT **/
-
-    if (tree->nb_children != 0) {
-
-        perf(&barnes_start);
-
-        get_leafs_and_compute(leafs, tree, &nb_leafs);
+    if (launch_all) {
+        perf(&box_start);
 
         for (int i = 0; i < nb_total_boxes; i++) {
-            calcul_force_Barnes_Hut(leafs[i], tree, THRESHOLD);
+            for (int j = 0; j < nb_particules; j++) {
+                boxes[i].force[j].x = 0;
+                boxes[i].force[j].y = 0;
+            }
+
+            // Calcul des forces du bloc
+            calcul_force_own(&(boxes[i]));
         }
 
-        perf(&barnes_end);
+        for (int i = 0; i < nb_boxes; i++) {
+            for (int j = 0; j < nb_boxes; j++) {
+                if (i != j) {
+                    calcul_force_two_boxes(&(boxes[i]), &(boxes[j]), THRESHOLD);
+                }
+            }
+        }
 
-        /// Vérification
-        check_leafs(ref, nb_planets, leafs);
+        perf(&box_end);
+
+        /** CALCUL AVEC BARNES-HUT **/
+
+        if (tree->nb_children != 0) {
+
+            perf(&barnes_start);
+
+            get_leafs_and_compute(leafs, tree, &nb_leafs);
+
+            for (int i = 0; i < nb_total_boxes; i++) {
+                calcul_force_Barnes_Hut(leafs[i], tree, THRESHOLD);
+            }
+
+            perf(&barnes_end);
+
+            /// Vérification
+            check_leafs(ref, nb_planets, leafs);
+        }
+
+        /** VÉRIFICATION DES DONNÉES **/
+        check_boxes(ref, nb_planets, boxes);
+
+        perf_diff(&box_start, &box_end);
+        if (tree->nb_children != 0) {
+            perf_diff(&barnes_start, &barnes_end);
+        }
     }
-
-    /** VÉRIFICATION DES DONNÉES **/
-    check_boxes(ref, nb_planets, boxes);
 
 
     perf_diff(&gen_start, &gen_end);
-    perf_diff(&box_start, &box_end);
-    if (tree->nb_children != 0) {
-        perf_diff(&barnes_start, &barnes_end);
-    }
 
     if (rendering) {
         printf("Temps séquentiel - version basique : ");
         perf_printmicro(&gen_end);
 
-        printf("Temps séquentiel - version box (sur %d boîtes) : ", nb_total_boxes);
-        perf_printmicro(&box_end);
+        if (launch_all) {
 
-        if (tree->nb_children != 0) {
-            printf("Temps séquentiel - version Barnes-Hut : ");
-            perf_printmicro(&barnes_end);
+            printf("Temps séquentiel - version box (sur %d boîtes) : ", nb_total_boxes);
+            perf_printmicro(&box_end);
+
+            if (tree->nb_children != 0) {
+                printf("Temps séquentiel - version Barnes-Hut : ");
+                perf_printmicro(&barnes_end);
+            }
         }
     }
 }
