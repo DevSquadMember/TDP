@@ -4,7 +4,7 @@
 #include "physics.h"
 
 void render_seq(int nb_total_planets, char* title);
-void render(int nb_procs, int nb_total_planets, char* title);
+void render(int nb_procs, int nb_total_planets, char* title, char* res_filename);
 
 void save_seq(planet* planets, int nb_planets);
 void save(int proc_id, planet* planets, int nb_planets);

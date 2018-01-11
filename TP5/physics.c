@@ -14,6 +14,13 @@ void box_init(box* box, int nb_planets) {
     box->planets = malloc(sizeof(planet) * nb_planets);
 }
 
+void box_copy(box* src, box* dest) {
+    box_init(dest, src->nb_planets);
+    for (int i = 0 ; i < src->nb_planets ; i++) {
+        copy_planet(&(src->planets[i]), &(dest->planets[i]));
+    }
+}
+
 void box_free(box* box) {
     free(box->force);
     free(box->planets);

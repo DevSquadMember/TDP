@@ -1,5 +1,6 @@
 #include "simulation.h"
 #include "perf.h"
+#include "saver.h"
 #include <stdlib.h>
 #include <mpi.h>
 #include <printf.h>
@@ -11,9 +12,9 @@
 #define THRESHOLD 1000000
 
 MPI_Datatype point_type;
-MPI_Datatype points_type;
+//MPI_Datatype points_type;
 MPI_Datatype planet_type;
-MPI_Datatype planets_type;
+//MPI_Datatype planets_type;
 MPI_Datatype box_type;
 
 void declare_types(int nb_planets) {
@@ -58,13 +59,13 @@ void declare_types(int nb_planets) {
 
     /// Déclaration du type PLANETS_TYPE
 
-    MPI_Type_vector(nb_planets, 1, 1, planet_type, &planets_type);
-    MPI_Type_commit(&planets_type);
+    /*MPI_Type_vector(nb_planets, 1, 1, planet_type, &planets_type);
+    MPI_Type_commit(&planets_type);*/
 
     /// Déclaration du type POINTS_TYPE
 
-    MPI_Type_vector(nb_planets, 1, 1, point_type, &points_type);
-    MPI_Type_commit(&points_type);
+    /*MPI_Type_vector(nb_planets, 1, 1, point_type, &points_type);
+    MPI_Type_commit(&points_type);*/
 
     /// Déclaration du type BOX
 
@@ -121,6 +122,7 @@ int main(int argc,char ** argv) {
     int world_size = WORLD_SIZE;
 
     int rendering = 1;
+    int generate_graph = 1;
 
     //char* filename = TEST_FILE;
 
@@ -131,7 +133,8 @@ int main(int argc,char ** argv) {
         }
     }
 
-    perf_t scatter_start, scatter_end, par_start, par_end;
+    perf_t scatter_start, scatter_end, gather_start, gather_end, par_start, par_end, calc_start, calc_end, calc_total;
+    perf_init(&calc_total);
 
     MPI_Status status_p_send, status_p_recv, status_b_send, status_b_recv;
     MPI_Request request_p_send, request_p_recv, request_b_send, request_b_recv;
@@ -146,6 +149,8 @@ int main(int argc,char ** argv) {
     struct box ref_box; // boîte de référence
     struct box* boxes;
 
+    struct point* forces;
+
     struct box local_box; // boîte locale de chaque processeur
     box_init(&local_box, nb_particles);
 
@@ -156,12 +161,14 @@ int main(int argc,char ** argv) {
 
     struct box *sender, *receiver;
 
+    int nb_total_boxes = size * size;
+    int nb_total_planets = size * size * nb_particles;
+
     // Chargement de la boîte de référence et des boîtes pour les processeurs
     if (rank == 0) {
-        int nb_total_boxes = size; // size * size;
-        int nb_planets = size * nb_particles; // size * size * nb_particles;
         boxes = malloc(sizeof(struct box) * nb_total_boxes);
-        load_boxes(&ref_box, boxes, size, nb_total_boxes, nb_particles, nb_planets, world_size, rendering);
+        load_boxes(&ref_box, boxes, size, nb_total_boxes, nb_particles, nb_total_planets, world_size, rendering);
+        forces = malloc(sizeof(struct point) * ref_box.nb_planets);
         /*box_init(&ref_box, nb_planets);
         generate_boxes(&ref_box, boxes, size, world_size/size, nb_particles);*/
     }
@@ -212,11 +219,17 @@ int main(int argc,char ** argv) {
         MPI_Irecv(receiver, 1, box_type, ring_left, rank, MPI_COMM_WORLD, &request_b_recv);
         MPI_Irecv(receiver->planets, nb_particles, planet_type, ring_left, rank, MPI_COMM_WORLD, &request_p_recv);
 
+        perf(&calc_start);
+
         if (i == 0) {
             calcul_force_own(&local_box);
         } else {
             calcul_force_two_boxes(&local_box, sender, THRESHOLD);
         }
+
+        perf(&calc_end);
+
+        perf_add(&calc_start, &calc_end, &calc_total);
 
         // Attente des communications
         MPI_Wait(&request_b_send, &status_b_send);
@@ -238,25 +251,62 @@ int main(int argc,char ** argv) {
 
     /** FIN DU CALCUL EN PARALLÈLE **/
 
+    perf(&gather_start);
+
+    // Envoi des forces depuis chaque processeur
+    MPI_Gather(local_box.force, nb_particles, point_type, forces, nb_particles, point_type, 0, MPI_COMM_WORLD);
+
+    perf(&gather_end);
+
     if (rank == 0) {
         perf_diff(&scatter_start, &scatter_end);
         perf_diff(&par_start, &par_end);
+        perf_diff(&gather_start, &gather_end);
 
         if (rendering) {
             printf("Temps parallèle - scatter : ");
             perf_printmicro(&scatter_end);
 
-            printf("Temps parallèle - calcul : ");
+            printf("Temps parallèle - calcul & communications : ");
             perf_printmicro(&par_end);
+
+            printf("Temps parallèle - calcul pur : ");
+            perf_printmicro(&calc_total);
+
+            printf("Temps parallèle - gather : ");
+            perf_printmicro(&gather_end);
         }
 
-        check_boxes(&ref_box, size*nb_particles, boxes);
+        check_forces(ref_box.force, forces, nb_total_planets);
+        //check_boxes(&ref_box, size*nb_particles, boxes);
+
+        if (generate_graph) {
+            for (int i = 0 ; i < size ; i++) {
+                save(i, boxes[i].planets, boxes[i].nb_planets);
+            }
+            save_close();
+            char title[30];
+            sprintf(title, "Calcul parallèle %d Blocs", nb_total_boxes);
+            render(size, nb_total_planets, title, "par.dat");
+        }
+
+        box_free(&ref_box);
+        for (int i = 0 ; i < size ; i++) {
+            box_free(&boxes[i]);
+        }
+
+        free(forces);
+        free(boxes);
     }
 
+    box_free(&local_box);
+    box_free(&buffer1_box);
+    box_free(&buffer2_box);
+
     MPI_Type_free(&point_type);
-    MPI_Type_free(&points_type);
+    //MPI_Type_free(&points_type);
     MPI_Type_free(&planet_type);
-    MPI_Type_free(&planets_type);
+    //MPI_Type_free(&planets_type);
     MPI_Type_free(&box_type);
 
     MPI_Finalize();

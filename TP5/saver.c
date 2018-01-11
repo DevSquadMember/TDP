@@ -47,7 +47,7 @@ void render_seq(int nb_total_planets, char* title) {
 }
 
 // join file1 file2 | join - file3 > output
-void render(int nb_procs, int nb_total_planets, char* title) {
+void render(int nb_procs, int nb_total_planets, char* title, char* res_filename) {
     if (nb_procs > 1) {
         char command[200] = "join";
         char filename[10];
@@ -60,14 +60,14 @@ void render(int nb_procs, int nb_total_planets, char* title) {
                 sprintf(command, "%s | join - %s", command, filename);
             }
         }
-        sprintf(command, "%s > %s\n", command, FINAL_BLOCS_FILENAME);
+        sprintf(command, "%s > %s\n", command, res_filename);
 
         FILE *f = popen(command, "r");
         sleep(1);
         pclose(f);
     }
 
-    render_plot(nb_total_planets, title, FINAL_BLOCS_FILENAME, "res-bloc.png");
+    render_plot(nb_total_planets, title, res_filename, "res-bloc.png");
 }
 
 void save_seq(planet* planets, int nb_planets) {
