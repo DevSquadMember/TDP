@@ -3,7 +3,7 @@
 #include "utils.h"
 #include <stdlib.h>
 #include <mpi.h>
-#include <printf.h>
+#include <stdio.h>
 #include <math.h>
 
 #define TEST_FILE "test_planets.txt"
