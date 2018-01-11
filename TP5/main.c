@@ -179,8 +179,6 @@ int main(int argc,char ** argv) {
         forces = malloc(sizeof(struct point) * ref_box.nb_planets);
     }
 
-    perf(&total_start);
-
     perf(&scatter_start);
 
     // Envoi des boîtes sur chaque processeur
@@ -196,6 +194,8 @@ int main(int argc,char ** argv) {
         launch_sequential_simulation_box_on(&ref_box, boxes, &tree, nb_blocs, nb_particles, rendering, launch_seq);
     }
     /** FIN DU CALCUL EN SÉQUENTIEL **/
+
+    perf(&total_start);
 
     /** CALCUL EN PARALLÈLE **/
     // Position des voisins dans l'anneau
