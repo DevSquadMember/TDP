@@ -9,6 +9,8 @@ void generate_boxes(box* ref, box* boxes, int nb_boxes, int box_size, int nb_par
 
 void check_boxes(box* ref, int nb_total_planets, box* boxes);
 
+void check_forces(point* ref, point* val, int nb_particles);
+
 void load_boxes(box* ref, box* boxes, int nb_boxes, int nb_total_boxes, int nb_particules, int nb_planets, int world_size, int rendering);
 
 void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size, int rendering);

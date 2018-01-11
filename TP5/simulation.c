@@ -91,8 +91,8 @@ void generate_boxes(box* ref, box* boxes, int nb_boxes, int box_size, int nb_par
     printf("Generating boxes\n");
 
     // Initialisation des Box
-    ///for (int i = 0 ; i < nb_boxes ; i++) {
-        row = 0;///i*nb_boxes;
+    for (int i = 0 ; i < nb_boxes ; i++) {
+        row = i*nb_boxes;
         for (int j = 0 ; j < nb_boxes ; j++) {
             current = row + j;
             printf("Generating box n°%d - %d particules : ", current, nb_particules);
@@ -106,7 +106,7 @@ void generate_boxes(box* ref, box* boxes, int nb_boxes, int box_size, int nb_par
             // Génération des particules dans la Box
             box_generate_particules(&(boxes[current]), ref, &total, nb_particules);
         }
-    ///}
+    }
 }
 
 double compute_error(double ref, double val) {
@@ -122,6 +122,15 @@ double compute_error(double ref, double val) {
     }
 
     return percent;
+}
+
+void handle_error(double ref, double val, int* nb_errors, double* max_percent) {
+    double percent = compute_error(ref, val);
+    if (percent != 0.) {
+        (*nb_errors)++;
+        if (percent > *max_percent)
+            (*max_percent) = percent;
+    }
 }
 
 /**
@@ -145,7 +154,10 @@ void check_boxes(box* ref, int nb_total_planets, box* boxes) {
             j = 0;
         }
 
-        percent = compute_error(ref->force[i].x, boxes[current_box].force[j].x);
+        handle_error(ref->force[i].x, boxes[current_box].force[j].x, &nb_errors, &max_percent);
+        handle_error(ref->force[i].y, boxes[current_box].force[j].y, &nb_errors, &max_percent);
+
+        /*percent = compute_error(ref->force[i].x, boxes[current_box].force[j].x);
         if (percent != 0.) {
             nb_errors++;
             if (percent > max_percent)
@@ -157,11 +169,31 @@ void check_boxes(box* ref, int nb_total_planets, box* boxes) {
             nb_errors++;
             if (percent > max_percent)
                 max_percent = percent;
-        }
+        }*/
 
         j++;
     }
     printf("\n\tRésultat : %d erreurs trouvée(s) sur %d valeurs, avec un pourcentage d'erreur maximal de %e%%\n", nb_errors, nb_total_planets*2, max_percent);
+}
+
+/**
+ * Vérifier que les valeurs obtenues pour les forces correspond bien à celles obtenues dans la boîte de référence
+ * @param ref le tableau des forces de référence
+ * @param val le tableau des forces obtenues
+ * @param nb_particles nombre de particules
+ */
+void check_forces(point* ref, point* val, int nb_particles) {
+    printf("\n\tVérification de la cohérence des vecteurs de force\n");
+    int current_box = -1;
+    int nb_errors = 0;
+    double percent;
+    double max_percent = 0.;
+
+    for (int i = 0 ; i < nb_particles ; i++) {
+        handle_error(ref[i].x, val[i].x, &nb_errors, &max_percent);
+        handle_error(ref[i].y, val[i].y, &nb_errors, &max_percent);
+    }
+    printf("\n\tRésultat : %d erreurs trouvée(s) sur %d valeurs, avec un pourcentage d'erreur maximal de %e%%\n", nb_errors, nb_particles*2, max_percent);
 }
 
 void load_boxes(box* ref, box* boxes, int nb_boxes, int nb_total_boxes, int nb_particules, int nb_planets, int world_size, int rendering) {
@@ -186,10 +218,8 @@ void load_boxes(box* ref, box* boxes, int nb_boxes, int nb_total_boxes, int nb_p
  * @param rendering 1 = affichage des infos, 0 = mode silencieux
  */
 void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size, int rendering) {
-    ///int nb_total_boxes = nb_boxes * nb_boxes;
-    int nb_total_boxes = nb_boxes;
-    ///int nb_planets = nb_boxes * nb_boxes * nb_particules;
-    int nb_planets = nb_boxes * nb_particules;
+    int nb_total_boxes = nb_boxes * nb_boxes;
+    int nb_planets = nb_boxes * nb_boxes * nb_particules;
 
     // Chargement des boîtes
     box ref;
@@ -217,10 +247,8 @@ void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size,
 void launch_sequential_simulation_box_on(box* ref, box* boxes, int nb_boxes, int nb_particules, int rendering) {
     perf_t gen_start, gen_end, box_start, box_end;
 
-    ///int nb_total_boxes = nb_boxes * nb_boxes;
-    int nb_total_boxes = nb_boxes;
-    ///int nb_planets = nb_boxes * nb_boxes * nb_particules;
-    int nb_planets = nb_boxes * nb_particules;
+    int nb_total_boxes = nb_boxes * nb_boxes;
+    int nb_planets = nb_boxes * nb_boxes * nb_particules;
 
     /** CALCUL DU BLOC TOTAL **/
     for (int i = 0; i < nb_planets; i++) {
@@ -233,6 +261,8 @@ void launch_sequential_simulation_box_on(box* ref, box* boxes, int nb_boxes, int
     perf(&gen_end);
 
     /** CALCUL DES DEUX BLOCS **/
+    perf(&box_start);
+
     for (int i = 0; i < nb_total_boxes; i++) {
         for (int j = 0 ; j < nb_particules ; j++) {
             boxes[i].force[j].x = 0;
@@ -240,11 +270,10 @@ void launch_sequential_simulation_box_on(box* ref, box* boxes, int nb_boxes, int
         }
 
         // Calcul des forces du bloc
-        ///calcul_force_own(&(boxes[i]));
+        calcul_force_own(&(boxes[i]));
     }
 
-    perf(&box_start);
-
+    /**
     // Calcul des forces du bloc 1
     calcul_force_own(&(boxes[0]));
 
@@ -254,14 +283,15 @@ void launch_sequential_simulation_box_on(box* ref, box* boxes, int nb_boxes, int
     // Calcul des intéractions
     calcul_force_two_boxes(&(boxes[0]), &(boxes[1]), THRESHOLD);
     calcul_force_two_boxes(&(boxes[1]), &(boxes[0]), THRESHOLD);
+    **/
 
-    /**for (int i = 0 ; i < nb_boxes ; i++) {
+    for (int i = 0 ; i < nb_boxes ; i++) {
         for (int j = 0 ; j < nb_boxes ; j++) {
             if (i != j) {
                 calcul_force_two_boxes(&(boxes[i]), &(boxes[j]), THRESHOLD);
             }
         }
-    }**/
+    }
 
     perf(&box_end);
 
@@ -416,7 +446,7 @@ void launch_sequential_simulation_blocs(int rendering, char* filename) {
         save(0, box1.planets, nb_planets_bloc);
         save(1, box2.planets, nb_planets_bloc);
         save_close();
-        render(2, nb_planets, "Calcul 2 Blocs");
+        render(2, nb_planets, "Calcul 2 Blocs", "f.dat");
     }
 
     /** VÉRIFICATION DES DONNÉES **/

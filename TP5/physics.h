@@ -29,6 +29,7 @@ struct planet_handle {
 };
 
 void box_init(box* box, int nb_planets);
+void box_copy(box* src, box* dest);
 void box_free(box* box);
 
 void copy_planet(planet* src, planet* dest);
