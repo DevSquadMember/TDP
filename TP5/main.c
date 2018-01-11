@@ -1,9 +1,10 @@
 #include "simulation.h"
 #include "perf.h"
-#include "saver.h"
+#include "utils.h"
 #include <stdlib.h>
 #include <mpi.h>
 #include <printf.h>
+#include <math.h>
 
 #define TEST_FILE "test_planets.txt"
 #define NB_PARTICLES 5
@@ -133,7 +134,7 @@ int main(int argc,char ** argv) {
         }
     }
 
-    perf_t scatter_start, scatter_end, gather_start, gather_end, par_start, par_end, calc_start, calc_end, calc_total;
+    perf_t scatter_start, scatter_end, gather_start, gather_end, par_start, par_end, calc_start, calc_end, calc_total, total_start, total_end;
     perf_init(&calc_total);
 
     MPI_Status status_p_send, status_p_recv, status_b_send, status_b_recv;
@@ -144,10 +145,19 @@ int main(int argc,char ** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+    int nb_blocs = (int) sqrt(size);
+
+    if (nb_blocs * nb_blocs != size) {
+        printf("> Impossible de travailler avec %d processeurs, %d n'est pas un carré\n", size, size);
+        MPI_Finalize();
+        return EXIT_SUCCESS;
+    }
+
     declare_types(nb_particles);
 
     struct box ref_box; // boîte de référence
     struct box* boxes;
+    struct node tree;
 
     struct point* forces;
 
@@ -161,17 +171,19 @@ int main(int argc,char ** argv) {
 
     struct box *sender, *receiver;
 
-    int nb_total_boxes = size * size;
-    int nb_total_planets = size * size * nb_particles;
+    int nb_total_boxes = size;
+    int nb_total_planets = size * nb_particles;
 
     // Chargement de la boîte de référence et des boîtes pour les processeurs
     if (rank == 0) {
         boxes = malloc(sizeof(struct box) * nb_total_boxes);
-        load_boxes(&ref_box, boxes, size, nb_total_boxes, nb_particles, nb_total_planets, world_size, rendering);
+        load_boxes(&ref_box, boxes, &tree, nb_blocs, nb_total_boxes, nb_particles, nb_total_planets, world_size, rendering);
         forces = malloc(sizeof(struct point) * ref_box.nb_planets);
         /*box_init(&ref_box, nb_planets);
         generate_boxes(&ref_box, boxes, size, world_size/size, nb_particles);*/
     }
+
+    perf(&total_start);
 
     perf(&scatter_start);
 
@@ -185,7 +197,7 @@ int main(int argc,char ** argv) {
 
     /** CALCUL EN SÉQUENTIEL **/
     if (rank == 0) {
-        launch_sequential_simulation_box_on(&ref_box, boxes, size, nb_particles, rendering);
+        launch_sequential_simulation_box_on(&ref_box, boxes, &tree, nb_blocs, nb_particles, rendering);
     }
     /** FIN DU CALCUL EN SÉQUENTIEL **/
 
@@ -258,10 +270,13 @@ int main(int argc,char ** argv) {
 
     perf(&gather_end);
 
+    perf(&total_end);
+
     if (rank == 0) {
         perf_diff(&scatter_start, &scatter_end);
         perf_diff(&par_start, &par_end);
         perf_diff(&gather_start, &gather_end);
+        perf_diff(&total_start, &total_end);
 
         if (rendering) {
             printf("Temps parallèle - scatter : ");
@@ -275,21 +290,15 @@ int main(int argc,char ** argv) {
 
             printf("Temps parallèle - gather : ");
             perf_printmicro(&gather_end);
+
+            printf("Temps parallèle - total : ");
+            perf_printmicro(&total_end);
         }
 
         check_forces(ref_box.force, forces, nb_total_planets);
         //check_boxes(&ref_box, size*nb_particles, boxes);
 
-        if (generate_graph) {
-            for (int i = 0 ; i < size ; i++) {
-                save(i, boxes[i].planets, boxes[i].nb_planets);
-            }
-            save_close();
-            char title[30];
-            sprintf(title, "Calcul parallèle %d Blocs", nb_total_boxes);
-            render(size, nb_total_planets, title, "par.dat");
-        }
-
+        quad_tree_free(&tree);
         box_free(&ref_box);
         for (int i = 0 ; i < size ; i++) {
             box_free(&boxes[i]);

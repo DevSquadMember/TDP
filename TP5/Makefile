@@ -7,7 +7,7 @@ ifeq (generate,$(firstword $(MAKECMDGOALS)))
 endif
 
 MAKEFLAGS += -s
-ifeq (run_seq,$(firstword $(MAKECMDGOALS)))
+ifeq (run,$(firstword $(MAKECMDGOALS)))
   # use the rest as arguments for "run"
   RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
   # ...and turn them into do-nothing targets
@@ -18,10 +18,7 @@ ifndef (NP)
 	NP=3
 endif
 
-all: seq both
-
-par:
-	@mpicc simulation.c parser.c physics.c saver.c main.c -o main_par
+all: seq par
 
 parser.o: parser.c parser.h
 	@gcc -c parser.c
@@ -35,23 +32,26 @@ saver.o: saver.c saver.h
 simulation.o : simulation.c simulation.h
 	@gcc -c simulation.c
 
+utils.o : utils.c utils.h
+	@gcc -c utils.c
+
 generator.o : generator.c
 	@gcc -c generator.c
 
 perf.o : perf.c perf.h
 	@gcc -c perf.c
 
-seq: simulation.o parser.o physics.o saver.o perf.o
-	@gcc simulation.o parser.o physics.o saver.o perf.o main_seq.c -o main_seq
+seq: simulation.o parser.o physics.o saver.o perf.o utils.o
+	@gcc simulation.o parser.o physics.o saver.o perf.o utils.o main_seq.c -o main_seq
 
-both: simulation.o parser.o physics.o saver.o perf.o
-	@mpicc simulation.o parser.o physics.o saver.o perf.o main.c -o main
+par: simulation.o parser.o physics.o saver.o perf.o utils.o
+	@mpicc simulation.c parser.c physics.c saver.c perf.o utils.o main.c -o main
 
 run_seq: all
 	@./main_seq $(RUN_ARGS)
 
-run_par: all
-	@mpirun -np ${NP} main_par $(RUN_ARGS)
+run: par
+	@mpirun -np ${NP} main $(RUN_ARGS)
 
 generate: generator.o parser.o physics.o simulation.o saver.o
 	@gcc simulation.o parser.o physics.o saver.o generator.o -o generator

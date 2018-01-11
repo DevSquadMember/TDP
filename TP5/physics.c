@@ -1,40 +1,8 @@
 #include <math.h>
-#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "physics.h"
 #define G 6.67e-11
-
-void box_init(box* box, int nb_planets) {
-    box->pos.x = 0.;
-    box->pos.y = 0.;
-    box->size = 0;
-    box->force = malloc(sizeof(point) * nb_planets);
-    box->nb_planets = nb_planets;
-    box->planets = malloc(sizeof(planet) * nb_planets);
-}
-
-void box_copy(box* src, box* dest) {
-    box_init(dest, src->nb_planets);
-    for (int i = 0 ; i < src->nb_planets ; i++) {
-        copy_planet(&(src->planets[i]), &(dest->planets[i]));
-    }
-}
-
-void box_free(box* box) {
-    free(box->force);
-    free(box->planets);
-}
-
-void copy_planet(planet* src, planet* dest) {
-    dest->acc.x = src->acc.x;
-    dest->acc.y = src->acc.y;
-    dest->mass = src->mass;
-    dest->pos.x = src->pos.x;
-    dest->pos.y = src->pos.y;
-    dest->speed.x = src->speed.x;
-    dest->speed.y = src->speed.y;
-}
 
 /** Calcul des forces en séquentiel sur ses propres planètes **/
 void calcul_force_seq(planet* myplanets, int size, point* forcebuf, double* dmin) {
@@ -224,24 +192,27 @@ void calcul_force_other(planet* myplanets, planet* planets, int size, point* for
     }
 }
 
-void calcul_force_Barnes_Hut(box* my_box, box* remote_box, double threshold){
-  int i;
-  if (remote_box->isLeaf /* booleen qui dit si on est une feuille */ == 1){
-    calcul_force_complete(my_box->planets, my_box->nb_planets, remote_box->planets, remote_box->nb_planets, my_box->force);
-  } else {
-    double dist;
-    for(i = 0 ; i < 4 ; i++){
-      dist = sqrt(pow(my_box->center.pos.x - /* pos x du centre de enfant i */, 2) + pow(my_box->center.pos.y - /* pos y du centre de enfant i */, 2));
-      if (remote_box->size/(2*dist) > threshold){
-	calcul_force_center(&(/* centre de l enfant */), my_box->planets, my_box->nb_planets, my_box->force);
-      } else {
-	calcul_force_Barnes_Hut(my_box,/* enfant */, threshold);
-      }
+void calcul_force_Barnes_Hut(struct node* node, struct node* remote_node, double threshold) {
+    if (node == remote_node) {
+        return;
     }
-  }
+    // On est sur une feuille, on calcule toutes les forces
+    if (remote_node->nb_children == 0) {
+        calcul_force_complete(node->box.planets, node->box.nb_planets, node->box.planets, remote_node->box.nb_planets, node->box.force);
+    } else {
+        double dist;
+        for (int i = 0 ; i < 4 ; i++) {
+            dist = sqrt(pow(node->box.center.pos.x - remote_node->nodes[i]->box.center.pos.x, 2) + pow(node->box.center.pos.y - remote_node->nodes[i]->box.center.pos.y, 2));
+            if (remote_node->box.size / (2*dist) > threshold) {
+                calcul_force_center(&(remote_node->nodes[i]->box.center), node->box.planets, node->box.nb_planets, node->box.force);
+            } else {
+                calcul_force_Barnes_Hut(node, remote_node->nodes[i], threshold);
+            }
+        }
+    }
 }
 
-void calcul_force_two_boxes(box* my_box, box* remote_box,double threshold){
+void calcul_force_two_boxes(box* my_box, box* remote_box, double threshold){
     double dist = sqrt(pow(my_box->center.pos.x - remote_box->center.pos.x, 2) + pow(my_box->center.pos.y - remote_box->center.pos.y, 2));
     if (remote_box->size/dist > threshold){
         calcul_force_center(&(remote_box->center), my_box->planets, my_box->nb_planets, my_box->force);
@@ -269,11 +240,10 @@ void calcul_force_center(planet* center, planet* myplanets, int size, point* for
         angle = (distx == 0) ? M_PI/2 : atan(disty/distx);
 
         sqdist = pow(distx, 2) + pow(disty, 2);
-        dist = sqrt(sqdist);
         force = (G * myplanets[i].mass * center->mass) / sqdist;
 
-        forcebuf[i].x = sidex*force*cos(angle);
-        forcebuf[i].y = sidey*force*sin(angle);
+        forcebuf[i].x += sidex*force*cos(angle);
+        forcebuf[i].y += sidey*force*sin(angle);
     }
 }
 
@@ -301,7 +271,6 @@ void calcul_force_complete(planet* myplanets, int sizea, planet* planets,int siz
             angle = (distx == 0) ? M_PI/2 : atan(disty/distx);
 
             sqdist = pow(distx, 2) + pow(disty, 2);
-            dist = sqrt(sqdist);
             force = (G * myplanets[i].mass * planets[j].mass) / sqdist;
 
             valx = sidex*force*cos(angle);
@@ -314,12 +283,11 @@ void calcul_force_complete(planet* myplanets, int sizea, planet* planets,int siz
 }
 
 /** Calcul du centre de masse **/
-void calcul_center_mass(box* box){
+void calcul_center_mass(box* box) {
     box->center.mass = 0;
     box->center.pos.x = 0;
     box->center.pos.y = 0;
-    int i;
-    for (i = 0 ; i < box->nb_planets ; i++){
+    for (int i = 0 ; i < box->nb_planets ; i++){
         box->center.mass += box->planets[i].mass;
         box->center.pos.x += box->planets[i].pos.x*box->planets[i].mass;
         box->center.pos.y += box->planets[i].pos.y*box->planets[i].mass;
