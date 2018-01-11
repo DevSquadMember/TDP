@@ -203,7 +203,7 @@ void calcul_force_Barnes_Hut(struct node* node, struct node* remote_node, double
         double dist;
         for (int i = 0 ; i < 4 ; i++) {
             dist = sqrt(pow(node->box.center.pos.x - remote_node->nodes[i]->box.center.pos.x, 2) + pow(node->box.center.pos.y - remote_node->nodes[i]->box.center.pos.y, 2));
-            if (remote_node->box.size / (2*dist) > threshold) {
+            if (remote_node->box.size / (2*dist) < threshold) {
                 calcul_force_center(&(remote_node->nodes[i]->box.center), node->box.planets, node->box.nb_planets, node->box.force);
             } else {
                 calcul_force_Barnes_Hut(node, remote_node->nodes[i], threshold);
@@ -214,7 +214,7 @@ void calcul_force_Barnes_Hut(struct node* node, struct node* remote_node, double
 
 void calcul_force_two_boxes(box* my_box, box* remote_box, double threshold){
     double dist = sqrt(pow(my_box->center.pos.x - remote_box->center.pos.x, 2) + pow(my_box->center.pos.y - remote_box->center.pos.y, 2));
-    if (remote_box->size/dist > threshold){
+    if (remote_box->size/dist < threshold){
         calcul_force_center(&(remote_box->center), my_box->planets, my_box->nb_planets, my_box->force);
     } else {
         calcul_force_complete(my_box->planets, my_box->nb_planets, remote_box->planets, remote_box->nb_planets, my_box->force);
