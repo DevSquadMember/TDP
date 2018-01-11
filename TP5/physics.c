@@ -217,6 +217,23 @@ void calcul_force_other(planet* myplanets, planet* planets, int size, point* for
     }
 }
 
+void calcul_force_Barnes_Hut(box* my_box, box* remote_box, double threshold){
+  int i;
+  if (remote_box->isLeaf /* booleen qui dit si on est une feuille */ == 1){
+    calcul_force_complete(my_box->planets, my_box->nb_planets, remote_box->planets, remote_box->nb_planets, my_box->force);
+  } else {
+    double dist;
+    for(i = 0 ; i < 4 ; i++){
+      dist = sqrt(pow(my_box->center.pos.x - /* pos x du centre de enfant i */, 2) + pow(my_box->center.pos.y - /* pos y du centre de enfant i */, 2));
+      if (remote_box->size/(2*dist) > threshold){
+	calcul_force_center(&(/* centre de l enfant */), my_box->planets, my_box->nb_planets, my_box->force);
+      } else {
+	calcul_force_Barnes_Hut(my_box,/* enfant */, threshold);
+      }
+    }
+  }
+}
+
 void calcul_force_two_boxes(box* my_box, box* remote_box,double threshold){
     double dist = sqrt(pow(my_box->center.pos.x - remote_box->center.pos.x, 2) + pow(my_box->center.pos.y - remote_box->center.pos.y, 2));
     if (remote_box->size/dist > threshold){
