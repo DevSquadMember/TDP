@@ -108,7 +108,7 @@ void calcul_force_first_loop(planet* myplanets, struct planet_handle* bufplanets
     }
 }
 
-void calcul_force_own(box* box){
+void calcul_force_own(box* box) {
     int i, j, sidex, sidey;
     double distx, disty, angle, force, sqdist;
 

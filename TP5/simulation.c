@@ -208,9 +208,10 @@ void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size,
 
 /**
  * Lancement de la simulation sur plusieurs boîtes dont comparaison avec boîte de référence
- * @param nb_boxes nombre de boîtes à utiliser
- * @param nb_particules nombre de particules dans chaque boîte
- * @param size taille en km du monde (donc de la boîte de référence)
+ * @param ref Boîte de référence
+ * @param boxes Boîtes de travail
+ * @param nb_boxes nombre de boîtes
+ * @param nb_particules nombre de particules par boîte
  * @param rendering 1 = affichage des infos, 0 = mode silencieux
  */
 void launch_sequential_simulation_box_on(box* ref, box* boxes, int nb_boxes, int nb_particules, int rendering) {
@@ -226,7 +227,10 @@ void launch_sequential_simulation_box_on(box* ref, box* boxes, int nb_boxes, int
         ref->force[i].x = 0;
         ref->force[i].y = 0;
     }
+
+    perf(&gen_start);
     calcul_force_own(ref);
+    perf(&gen_end);
 
     /** CALCUL DES DEUX BLOCS **/
     for (int i = 0; i < nb_total_boxes; i++) {
@@ -239,24 +243,23 @@ void launch_sequential_simulation_box_on(box* ref, box* boxes, int nb_boxes, int
         ///calcul_force_own(&(boxes[i]));
     }
 
-    perf(&gen_start);
+    perf(&box_start);
 
     // Calcul des forces du bloc 1
     calcul_force_own(&(boxes[0]));
-
-    perf(&gen_end);
-
-    perf(&box_start);
 
     // Calcul des forces du bloc 2
     calcul_force_own(&(boxes[1]));
 
     // Calcul des intéractions
     calcul_force_two_boxes(&(boxes[0]), &(boxes[1]), THRESHOLD);
+    calcul_force_two_boxes(&(boxes[1]), &(boxes[0]), THRESHOLD);
 
     /**for (int i = 0 ; i < nb_boxes ; i++) {
         for (int j = 0 ; j < nb_boxes ; j++) {
-            calcul_force_two_boxes(&(boxes[i]), &(boxes[j]), THRESHOLD);
+            if (i != j) {
+                calcul_force_two_boxes(&(boxes[i]), &(boxes[j]), THRESHOLD);
+            }
         }
     }**/
 

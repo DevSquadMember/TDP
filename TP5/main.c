@@ -8,6 +8,8 @@
 #define NB_PARTICLES 5
 #define WORLD_SIZE 1000000000
 
+#define THRESHOLD 1000000
+
 MPI_Datatype point_type;
 MPI_Datatype points_type;
 MPI_Datatype planet_type;
@@ -129,7 +131,10 @@ int main(int argc,char ** argv) {
         }
     }
 
-    perf_t scatter_start, scatter_end;
+    perf_t scatter_start, scatter_end, par_start, par_end;
+
+    MPI_Status status_p_send, status_p_recv, status_b_send, status_b_recv;
+    MPI_Request request_p_send, request_p_recv, request_b_send, request_b_recv;
 
     MPI_Init(NULL, NULL);
 
@@ -143,6 +148,13 @@ int main(int argc,char ** argv) {
 
     struct box local_box; // boîte locale de chaque processeur
     box_init(&local_box, nb_particles);
+
+    struct box buffer1_box; // boîte de travail 1
+    box_init(&buffer1_box, nb_particles);
+    struct box buffer2_box; // boîte de travail 2
+    box_init(&buffer2_box, nb_particles);
+
+    struct box *sender, *receiver;
 
     // Chargement de la boîte de référence et des boîtes pour les processeurs
     if (rank == 0) {
@@ -164,18 +176,81 @@ int main(int argc,char ** argv) {
 
     perf(&scatter_end);
 
-    // nb_boxes, nb_particles_per_box, world_size, rendering (1 = true)
-    ///launch_sequential_simulation_box(2, 5, 1000000000, 1);
-
-    // Lancement du calcul en séquentiel
+    /** CALCUL EN SÉQUENTIEL **/
     if (rank == 0) {
         launch_sequential_simulation_box_on(&ref_box, boxes, size, nb_particles, rendering);
     }
+    /** FIN DU CALCUL EN SÉQUENTIEL **/
+
+    /** CALCUL EN PARALLÈLE **/
+    // Position des voisins dans l'anneau
+    int ring_left = (rank - 1 + size) % size;
+    int ring_right = (rank + 1) % size;
+
+    // Initialisation des pointeurs de buffer envoi/réception
+    sender = &buffer1_box;
+    receiver = &buffer2_box;
+
+    // Copie des données des planètes locales dans le buffer d'envoi
+    for (int i = 0; i < nb_particles; i++) {
+        sender->planets[i].mass = local_box.planets[i].mass;
+        sender->planets[i].acc = local_box.planets[i].acc;
+        sender->planets[i].speed = local_box.planets[i].speed;
+        sender->planets[i].pos = local_box.planets[i].pos;
+
+        local_box.force[i].x = 0;
+        local_box.force[i].y = 0;
+    }
+
+    perf(&par_start);
+
+    // Parcours de l'anneau pour une itération
+    for (int i = 0; i < size; i++) {
+        // Lancement des communications - boîtes et particules
+        MPI_Isend(sender, 1, box_type, ring_right, ring_right, MPI_COMM_WORLD, &request_b_send);
+        MPI_Isend(sender->planets, nb_particles, planet_type, ring_right, ring_right, MPI_COMM_WORLD, &request_p_send);
+        MPI_Irecv(receiver, 1, box_type, ring_left, rank, MPI_COMM_WORLD, &request_b_recv);
+        MPI_Irecv(receiver->planets, nb_particles, planet_type, ring_left, rank, MPI_COMM_WORLD, &request_p_recv);
+
+        if (i == 0) {
+            calcul_force_own(&local_box);
+        } else {
+            calcul_force_two_boxes(&local_box, sender, THRESHOLD);
+        }
+
+        // Attente des communications
+        MPI_Wait(&request_b_send, &status_b_send);
+        MPI_Wait(&request_b_recv, &status_b_recv);
+        MPI_Wait(&request_p_send, &status_p_send);
+        MPI_Wait(&request_p_recv, &status_p_recv);
+
+        // Echange des buffers des anneaux
+        if (receiver == &buffer1_box) {
+            sender = &buffer1_box;
+            receiver = &buffer2_box;
+        } else {
+            sender = &buffer2_box;
+            receiver = &buffer1_box;
+        }
+    }
+
+    perf(&par_end);
+
+    /** FIN DU CALCUL EN PARALLÈLE **/
 
     if (rank == 0) {
         perf_diff(&scatter_start, &scatter_end);
-        printf("Temps de scatter : ");
-        perf_printmicro(&scatter_end);
+        perf_diff(&par_start, &par_end);
+
+        if (rendering) {
+            printf("Temps parallèle - scatter : ");
+            perf_printmicro(&scatter_end);
+
+            printf("Temps parallèle - calcul : ");
+            perf_printmicro(&par_end);
+        }
+
+        check_boxes(&ref_box, size*nb_particles, boxes);
     }
 
     MPI_Type_free(&point_type);
