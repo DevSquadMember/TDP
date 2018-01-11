@@ -18,7 +18,7 @@ ifndef (NP)
 	NP=3
 endif
 
-all: seq
+all: seq both
 
 par:
 	@mpicc simulation.c parser.c physics.c saver.c main.c -o main_par
@@ -38,8 +38,14 @@ simulation.o : simulation.c simulation.h
 generator.o : generator.c
 	@gcc -c generator.c
 
-seq: simulation.o parser.o physics.o saver.o
-	@gcc simulation.o parser.o physics.o saver.o main_seq.c -o main_seq
+perf.o : perf.c perf.h
+	@gcc -c perf.c
+
+seq: simulation.o parser.o physics.o saver.o perf.o
+	@gcc simulation.o parser.o physics.o saver.o perf.o main_seq.c -o main_seq
+
+both: simulation.o parser.o physics.o saver.o perf.o
+	@mpicc simulation.o parser.o physics.o saver.o perf.o main.c -o main
 
 run_seq: all
 	@./main_seq $(RUN_ARGS)
@@ -59,6 +65,7 @@ clean :
 	@rm -rf *.o
 
 mrproper: clean
+	@rm -rf main
 	@rm -rf main_par
 	@rm -rf main_seq
 	@rm -rf generator

@@ -5,6 +5,7 @@
 #include "simulation.h"
 #include "parser.h"
 #include "saver.h"
+#include "perf.h"
 
 #define MAX_SIZE_FOR_RENDERING 12
 #define MAX_MASS 1000000000
@@ -12,19 +13,24 @@
 
 #define THRESHOLD 1000000
 
-void generate_particules(int nb_particules, char* filename) {
+/**
+ * Generate particles and storing them in a file
+ * @param nb_particules the number of particles to generate
+ * @param filename the name of the file where the particles whill be saved
+ */
+void generate_particules(int nb_particles, char* filename) {
     FILE* file;
 
     srand((unsigned int) time(NULL));
 
     file = fopen(filename, "w");
-    fprintf(file, "%d\n", nb_particules);
+    fprintf(file, "%d\n", nb_particles);
     double mass, posx, posy, vitx, vity;
 
-    for (int i = 0 ; i < nb_particules ; i++) {
-        mass = (rand()/(double)RAND_MAX) * (nb_particules * 100 - MIN_MASS) + MIN_MASS;
-        posx = (rand()/(double)RAND_MAX) * (nb_particules * 10000);
-        posy = (rand()/(double)RAND_MAX) * (nb_particules * 10000);
+    for (int i = 0 ; i < nb_particles ; i++) {
+        mass = (rand()/(double)RAND_MAX) * (nb_particles * 100 - MIN_MASS) + MIN_MASS;
+        posx = (rand()/(double)RAND_MAX) * (nb_particles * 10000);
+        posy = (rand()/(double)RAND_MAX) * (nb_particles * 10000);
         vitx = (rand()/(double)RAND_MAX) * (1000) - 500;
         vity = (rand()/(double)RAND_MAX) * (1000) - 500;
 
@@ -34,6 +40,13 @@ void generate_particules(int nb_particules, char* filename) {
     fclose(file);
 }
 
+/**
+ * Generate particles for a box
+ * @param box the box where the particles should be stored
+ * @param ref_box the reference box where the particles should be copied (it represents the world)
+ * @param current the current amount of particles in the world
+ * @param nb_particules the amount of particles to create in the box
+ */
 void box_generate_particules(struct box* box, struct box* ref_box, int* current, int nb_particules) {
     double mass, posx, posy, vitx, vity;
     double min_x, min_y;
@@ -60,6 +73,14 @@ void box_generate_particules(struct box* box, struct box* ref_box, int* current,
     }
 }
 
+/**
+ * Generate particles in the boxes
+ * @param ref The reference box containing the world
+ * @param boxes the array of boxes where to create the particles
+ * @param nb_boxes the number of boxes
+ * @param box_size the size of the box
+ * @param nb_particules the number of particles to create in each box
+ */
 void generate_boxes(box* ref, box* boxes, int nb_boxes, int box_size, int nb_particules) {
     int total = 0;
     int row, current;
@@ -74,7 +95,7 @@ void generate_boxes(box* ref, box* boxes, int nb_boxes, int box_size, int nb_par
         row = 0;///i*nb_boxes;
         for (int j = 0 ; j < nb_boxes ; j++) {
             current = row + j;
-            printf("Generating box n°%d - %d particules\n", current, nb_particules);
+            printf("Generating box n°%d - %d particules : ", current, nb_particules);
             // Initialisation de la Box
             box_init(&(boxes[current]), nb_particules);
             printf("OK\n");
@@ -86,14 +107,6 @@ void generate_boxes(box* ref, box* boxes, int nb_boxes, int box_size, int nb_par
             box_generate_particules(&(boxes[current]), ref, &total, nb_particules);
         }
     ///}
-}
-
-void fill_planets(planet* planets, int start, int end, planet *bloc) {
-    int j = 0;
-    for (int i = start ; i < end ; i++) {
-        copy_planet(&(planets[i]), &(bloc[j]));
-        j++;
-    }
 }
 
 double compute_error(double ref, double val) {
@@ -151,6 +164,20 @@ void check_boxes(box* ref, int nb_total_planets, box* boxes) {
     printf("\n\tRésultat : %d erreurs trouvée(s) sur %d valeurs, avec un pourcentage d'erreur maximal de %e%%\n", nb_errors, nb_total_planets*2, max_percent);
 }
 
+void load_boxes(box* ref, box* boxes, int nb_boxes, int nb_total_boxes, int nb_particules, int nb_planets, int world_size, int rendering) {
+    if (rendering) {
+        printf("Lancement de la simulation par boîtes\n");
+        printf("-- Nombre de boîtes : %d\n", nb_total_boxes);
+        printf("-- Nombre de planètes par boîte : %d\n", nb_particules);
+        printf("-- Nombre de planètes total : %d\n", nb_planets);
+        printf("-- Taille du monde (en km) : %d\n", world_size);
+        printf("-- Début des calculs\n");
+    }
+
+    box_init(ref, nb_planets);
+    generate_boxes(ref, boxes, nb_boxes, world_size/nb_boxes, nb_particules);
+}
+
 /**
  * Lancement de la simulation sur plusieurs boîtes dont comparaison avec boîte de référence
  * @param nb_boxes nombre de boîtes à utiliser
@@ -164,28 +191,42 @@ void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size,
     ///int nb_planets = nb_boxes * nb_boxes * nb_particules;
     int nb_planets = nb_boxes * nb_particules;
 
-    if (rendering) {
-        printf("Lancement de la simulation par boîtes\n");
-        printf("-- Nombre de boîtes : %d\n", nb_total_boxes);
-        printf("-- Nombre de planètes par boîte : %d\n", nb_particules);
-        printf("-- Nombre de planètes total : %d\n", nb_planets);
-        printf("-- Taille du monde (en km) : %d\n", size);
-        printf("-- Début des calculs\n");
-    }
-
     // Chargement des boîtes
     box ref;
     box* boxes = malloc(sizeof(box) * nb_total_boxes);
 
-    box_init(&ref, nb_planets);
-    generate_boxes(&ref, boxes, nb_boxes, size/nb_boxes, nb_particules);
+    load_boxes(&ref, boxes, nb_boxes, nb_total_boxes, nb_particules, nb_planets, size, rendering);
+
+    launch_sequential_simulation_box_on(&ref, boxes, nb_boxes, nb_particules, rendering);
+
+    for (int i = 0 ; i < nb_total_boxes ; i++) {
+        box_free(&boxes[i]);
+    }
+    free(boxes);
+    box_free(&ref);
+}
+
+/**
+ * Lancement de la simulation sur plusieurs boîtes dont comparaison avec boîte de référence
+ * @param nb_boxes nombre de boîtes à utiliser
+ * @param nb_particules nombre de particules dans chaque boîte
+ * @param size taille en km du monde (donc de la boîte de référence)
+ * @param rendering 1 = affichage des infos, 0 = mode silencieux
+ */
+void launch_sequential_simulation_box_on(box* ref, box* boxes, int nb_boxes, int nb_particules, int rendering) {
+    perf_t gen_start, gen_end, box_start, box_end;
+
+    ///int nb_total_boxes = nb_boxes * nb_boxes;
+    int nb_total_boxes = nb_boxes;
+    ///int nb_planets = nb_boxes * nb_boxes * nb_particules;
+    int nb_planets = nb_boxes * nb_particules;
 
     /** CALCUL DU BLOC TOTAL **/
     for (int i = 0; i < nb_planets; i++) {
-        ref.force[i].x = 0;
-        ref.force[i].y = 0;
+        ref->force[i].x = 0;
+        ref->force[i].y = 0;
     }
-    calcul_force_own(&ref);
+    calcul_force_own(ref);
 
     /** CALCUL DES DEUX BLOCS **/
     for (int i = 0; i < nb_total_boxes; i++) {
@@ -198,8 +239,14 @@ void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size,
         ///calcul_force_own(&(boxes[i]));
     }
 
+    perf(&gen_start);
+
     // Calcul des forces du bloc 1
     calcul_force_own(&(boxes[0]));
+
+    perf(&gen_end);
+
+    perf(&box_start);
 
     // Calcul des forces du bloc 2
     calcul_force_own(&(boxes[1]));
@@ -213,14 +260,21 @@ void launch_sequential_simulation_box(int nb_boxes, int nb_particules, int size,
         }
     }**/
 
-    /** VÉRIFICATION DES DONNÉES **/
-    check_boxes(&ref, nb_planets, boxes);
+    perf(&box_end);
 
-    for (int i = 0 ; i < nb_total_boxes ; i++) {
-        box_free(&boxes[i]);
+    /** VÉRIFICATION DES DONNÉES **/
+    check_boxes(ref, nb_planets, boxes);
+
+    perf_diff(&gen_start, &gen_end);
+    perf_diff(&box_start, &box_end);
+
+    if (rendering) {
+        printf("Temps séquentiel - version basique : ");
+        perf_printmicro(&gen_end);
+
+        printf("Temps séquentiel - version box (sur %d boîtes) : ", nb_total_boxes);
+        perf_printmicro(&box_end);
     }
-    free(boxes);
-    box_free(&ref);
 }
 
 /** VIEILLE VERSION **/
@@ -255,6 +309,14 @@ void check_blocs(point* force_ref, int size, point* force1, point* force2) {
         j++;
     }
     printf("\n\tRésultat : %d erreurs trouvée(s) sur %d valeurs, avec un pourcentage d'erreur maximal de %e%%\n", nb_errors, size*2, max_percent);
+}
+
+void fill_planets(planet* planets, int start, int end, planet *bloc) {
+    int j = 0;
+    for (int i = start ; i < end ; i++) {
+        copy_planet(&(planets[i]), &(bloc[j]));
+        j++;
+    }
 }
 
 void launch_sequential_simulation_blocs(int rendering, char* filename) {

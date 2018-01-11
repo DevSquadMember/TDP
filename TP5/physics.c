@@ -220,9 +220,9 @@ void calcul_force_other(planet* myplanets, planet* planets, int size, point* for
 void calcul_force_two_boxes(box* my_box, box* remote_box,double threshold){
     double dist = sqrt(pow(my_box->center.pos.x - remote_box->center.pos.x, 2) + pow(my_box->center.pos.y - remote_box->center.pos.y, 2));
     if (remote_box->size/dist > threshold){
-        calcul_force_center(&(remote_box->center),my_box->planets,my_box->nb_planets,my_box->force);
+        calcul_force_center(&(remote_box->center), my_box->planets, my_box->nb_planets, my_box->force);
     } else {
-        calcul_force_complete(my_box->planets,my_box->nb_planets,remote_box->planets,remote_box->nb_planets,my_box->force);
+        calcul_force_complete(my_box->planets, my_box->nb_planets, remote_box->planets, remote_box->nb_planets, my_box->force);
     }
 }
 
