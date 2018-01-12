@@ -9,7 +9,7 @@ endif
 all: seq
 
 seq:
-	@gcc life_seq.c -o main_seq
+	@gcc -fopenmp life_seq.c -o main_seq
 
 run_seq: seq
 	@./main_seq $(RUN_ARGS)
