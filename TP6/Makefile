@@ -1,5 +1,13 @@
 MAKEFLAGS += -s
+
 ifeq (run_seq,$(firstword $(MAKECMDGOALS)))
+  # use the rest as arguments for "run"
+  RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  # ...and turn them into do-nothing targets
+  $(eval $(RUN_ARGS):;@:)
+endif
+
+ifeq (run_omp,$(firstword $(MAKECMDGOALS)))
   # use the rest as arguments for "run"
   RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
   # ...and turn them into do-nothing targets
@@ -12,7 +20,7 @@ seq:
 	@gcc life_seq.c -o main_seq
 
 omp:
-	@g++ -fopenmp life_omp.c -o main_omp
+	@gcc -fopenmp life_omp.c -o main_omp
 
 run_seq: seq
 	@./main_seq $(RUN_ARGS)
