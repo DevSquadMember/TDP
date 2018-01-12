@@ -103,7 +103,7 @@ int main(int argc, char* argv[]) {
 			cell(BS+1,    i) = cell( 1,  i);
 		}
 
-		//#pragma omp parallel for
+		
 		for (j = 1; j <= BS; j++) {
 			for (i = 1; i <= BS; i++) {
 				ngb( i, j ) =

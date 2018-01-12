@@ -105,7 +105,7 @@ int main(int argc, char* argv[]) {
 			cell(BS+1,    i) = cell( 1,  i);
 		}
 
-		//#pragma omp parallel for
+#pragma omp parallel for private(i)
 		for (j = 1; j <= BS; j++) {
 			for (i = 1; i <= BS; i++) {
 				ngb( i, j ) =
@@ -116,6 +116,7 @@ int main(int argc, char* argv[]) {
 		}
 
 		num_alive = 0;
+#pragma omp parallel for private(i) reduction(+:num_alive)
 		for (j = 1; j <= BS; j++) {
 			for (i = 1; i <= BS; i++) {
 				if ( (ngb( i, j ) < 2) ||
