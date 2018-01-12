@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <string.h>
-#include "omp.h"
 
 #define RENDERING 1
 
@@ -20,7 +19,6 @@ double mytimer(void) {
 void output_board(int N, int *board, int ldboard, int loop) {
 	int i,j;
 	printf("loop %d\n", loop);
-    omp_get_num_threads();
 	for (i=0; i<N; i++) {
 		for (j=0; j<N; j++) {
 			if ( cell( i, j ) == 1)
@@ -105,7 +103,7 @@ int main(int argc, char* argv[]) {
 			cell(BS+1,    i) = cell( 1,  i);
 		}
 
-#pragma omp parallel for private(i)
+		
 		for (j = 1; j <= BS; j++) {
 			for (i = 1; i <= BS; i++) {
 				ngb( i, j ) =
@@ -116,7 +114,6 @@ int main(int argc, char* argv[]) {
 		}
 
 		num_alive = 0;
-#pragma omp parallel for private(i) reduction(+:num_alive)
 		for (j = 1; j <= BS; j++) {
 			for (i = 1; i <= BS; i++) {
 				if ( (ngb( i, j ) < 2) ||
