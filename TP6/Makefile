@@ -26,8 +26,7 @@ run_seq: seq
 	@./main_seq $(RUN_ARGS)
 
 run_omp: omp
-	@export OMP_NUM_THREADS=${NP}
-	@./main_omp $(RUN_ARGS)
+	@env OMP_NUM_THREADS=${NP} ./main_omp $(RUN_ARGS)
 
 clean :
 	@rm -rf *.o

@@ -89,6 +89,7 @@ int main(int argc, char* argv[]) {
 	num_alive = generate_initial_board( BS, &(cell(1, 1)), ldboard );
 
 	printf("Starting number of living cells = %d\n", num_alive);
+	printf("Working with %d threads\n", omp_get_num_threads());
 	t1 = mytimer();
 
 	for (loop = 1; loop <= maxloop; loop++) {
