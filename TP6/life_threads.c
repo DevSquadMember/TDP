@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <string.h>
+#include "barrier.c"
 
 #define RENDERING 1
 

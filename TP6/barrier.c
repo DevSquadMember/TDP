@@ -1,3 +1,5 @@
+#include <pthread.h>
+
 int BS;
 int barrier;
 int barrier_id;
