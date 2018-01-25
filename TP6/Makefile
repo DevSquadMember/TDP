@@ -1,50 +1,85 @@
 MAKEFLAGS += -s
+BUILD=build
 
 ifeq (run_seq,$(firstword $(MAKECMDGOALS)))
-  # use the rest as arguments for "run"
   RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-  # ...and turn them into do-nothing targets
   $(eval $(RUN_ARGS):;@:)
 endif
 
 ifeq (run_omp,$(firstword $(MAKECMDGOALS)))
-  # use the rest as arguments for "run"
   RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-  # ...and turn them into do-nothing targets
   $(eval $(RUN_ARGS):;@:)
 endif
 
 ifeq (run_threads,$(firstword $(MAKECMDGOALS)))
-  # use the rest as arguments for "run"
   RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-  # ...and turn them into do-nothing targets
   $(eval $(RUN_ARGS):;@:)
 endif
 
-all: seq omp threads
+ifeq (run_mpi_sync,$(firstword $(MAKECMDGOALS)))
+  RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  $(eval $(RUN_ARGS):;@:)
+endif
+
+ifeq (run_mpi_async,$(firstword $(MAKECMDGOALS)))
+  RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  $(eval $(RUN_ARGS):;@:)
+endif
+
+ifeq (run_mpi_pers,$(firstword $(MAKECMDGOALS)))
+  RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  $(eval $(RUN_ARGS):;@:)
+endif
+
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+	C_OMP = clang-omp
+else
+	C_OMP = gcc
+endif
+
+all: dir seq omp threads mpi_sync
+
+$(BUILD)/utils.o : utils.c utils.h
+	@gcc -c utils.c -o $(BUILD)/utils.o
+
+$(BUILD)/utils-mpi.o : utils-mpi.c utils-mpi.h
+	@gcc -c utils-mpi.c -o $(BUILD)/utils-mpi.o
+
+$(BUILD)/barrier.o : barrier.c barrier.h
+	@gcc -c barrier.c -o $(BUILD)/barrier.o
+
+dir: $(BUILD)
+
+$(BUILD):
+	@mkdir $(BUILD)
 
 seq:
-	@gcc life_seq.c -o main_seq
+	@gcc life_seq.c -o $(BUILD)/main_seq
 
 omp:
-	@gcc -fopenmp life_omp.c -o main_omp
+	@$(C_OMP) -fopenmp life_omp.c -o $(BUILD)/main_omp
 
-threads:
-	@gcc life_threads.c -o main_threads
+threads: $(BUILD)/utils.o $(BUILD)/barrier.o
+	@gcc -Wno-deprecated $(BUILD)/utils.o $(BUILD)/barrier.o life_threads.c -o $(BUILD)/main_threads
+
+mpi_sync: $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o
+	@mpicc $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o life_mpi_sync.c -o $(BUILD)/main_mpi_sync
 
 run_seq: seq
-	@./main_seq $(RUN_ARGS)
+	@./$(BUILD/main_seq $(RUN_ARGS)
 
 run_omp: omp
-	@env OMP_NUM_THREADS=${NP} ./main_omp $(RUN_ARGS)
+	@env OMP_NUM_THREADS=${NP} ./$(BUILD)/main_omp $(RUN_ARGS)
 
 run_threads: threads
-	@./main_threads $(RUN_ARGS)
+	@./$(BUILD)/main_threads $(RUN_ARGS)
+
+run_mpi_sync: mpi_sync
+	@./$(BUILD)/main_mpi_sync $(RUN_ARGS)
 
 clean :
-	@rm -rf *.o
+	@rm -rf $(BUILD)/*.o
 
 mrproper: clean
-	@rm -rf main_seq
-	@rm -rf main_omp
-	@rm -rf main_threads
+	@rm -rf $(BUILD)/*

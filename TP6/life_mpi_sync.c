@@ -182,6 +182,37 @@ int main(int argc, char* argv[]) {
 	int i, num_alive;
 	double t1, t2;
 	double temps;
+    struct group world_group, grid_group, col_group, row_group;
+    int dimensions[2], periods[2], remain_dims[2], grid_coords[2];
+    int reorder;
+
+    perf_t start, stop, start_scatter, stop_scatter, start_calcul, stop_calcul, start_gather, stop_gather;
+
+    MPI_Status status;
+    MPI_Init(NULL, NULL);
+
+    world_group.comm = MPI_COMM_WORLD;
+    init_group(&world_group);
+
+    nb_blocs = (int) sqrt(world_group.size);
+
+    if (world_group.rank == 0) {
+        printf("> Lancement du calcul en parallèle sur %d processeurs\n", world_group.size);
+        printf("-- Début des calculs\n");
+    }
+
+    if (nb_blocs*nb_blocs != world_group.size) {
+        printf("> Impossible de découper la matrice avec %d processeurs, %d n'est pas un carré\n", world_group.size, world_group.size);
+        end();
+        return EXIT_SUCCESS;
+    }
+
+    // La grille/matrice est de taille nb_procs*nb_procs
+    dimensions[0] = nb_blocs;
+    dimensions[1] = nb_blocs;
+    periods[0] = FALSE;
+    periods[1] = TRUE;
+    reorder = FALSE;
 
 	rendering = RENDERING;
 
