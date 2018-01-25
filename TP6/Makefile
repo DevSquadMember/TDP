@@ -66,6 +66,9 @@ threads: $(BUILD)/utils.o $(BUILD)/barrier.o
 mpi_sync: $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o
 	@mpicc -g -lm $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o life_mpi_sync.c -o $(BUILD)/main_mpi_sync
 
+mpi_async: $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o
+	@mpicc -g -lm $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o life_mpi_async.c -o $(BUILD)/main_mpi_async
+
 run_seq: seq
 	@./$(BUILD)/main_seq $(RUN_ARGS)
 
@@ -77,6 +80,9 @@ run_threads: threads
 
 run_mpi_sync: mpi_sync
 	@mpirun -np ${NP} $(BUILD)/main_mpi_sync $(RUN_ARGS)
+
+run_mpi_async: mpi_async
+	@mpirun -np ${NP} $(BUILD)/main_mpi_async $(RUN_ARGS)
 
 clean :
 	@rm -rf $(BUILD)/*.o

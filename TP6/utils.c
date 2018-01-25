@@ -15,6 +15,7 @@ void output_board(int N, int *board, int ldboard, int loop) {
     printf("loop %d\n", loop);
     for (i=0; i<N; i++) {
         for (j=0; j<N; j++) {
+            ///printf("%d ", cell(j, i));
             if ( cell( j, i ) == 1)
                 printf("X");
             else
