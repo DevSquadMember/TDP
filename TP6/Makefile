@@ -38,7 +38,7 @@ else
 	C_OMP = gcc
 endif
 
-all: dir seq omp threads mpi_sync
+all: dir seq omp threads mpi_sync mpi_async mpi_pers
 
 $(BUILD)/utils.o : utils.c utils.h
 	@gcc -c utils.c -o $(BUILD)/utils.o
@@ -69,6 +69,9 @@ mpi_sync: $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o
 mpi_async: $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o
 	@mpicc -g -lm $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o life_mpi_async.c -o $(BUILD)/main_mpi_async
 
+mpi_pers: $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o
+	@mpicc -g -lm $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o life_mpi_pers.c -o $(BUILD)/main_mpi_pers
+
 run_seq: seq
 	@./$(BUILD)/main_seq $(RUN_ARGS)
 
@@ -83,6 +86,9 @@ run_mpi_sync: mpi_sync
 
 run_mpi_async: mpi_async
 	@mpirun -np ${NP} $(BUILD)/main_mpi_async $(RUN_ARGS)
+
+run_mpi_pers: mpi_pers
+	@mpirun -np ${NP} $(BUILD)/main_mpi_pers $(RUN_ARGS)
 
 clean :
 	@rm -rf $(BUILD)/*.o

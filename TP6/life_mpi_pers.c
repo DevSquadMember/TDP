@@ -10,6 +10,10 @@
 #define FALSE 0
 
 #define TAG 0
+#define TAG_LEFT 1
+#define TAG_RIGHT 2
+#define TAG_TOP 3
+#define TAG_BOTTOM 4
 
 int BS;
 
@@ -40,6 +44,8 @@ int main(int argc, char* argv[]) {
     int reorder;
 
     MPI_Status status;
+    MPI_Request left_sendr, right_sendr, top_sendr, bottom_sendr;
+    MPI_Request left_recvr, right_recvr, top_recvr, bottom_recvr;
     MPI_Init(NULL, NULL);
 
     world_group.comm = MPI_COMM_WORLD;
@@ -168,6 +174,10 @@ int main(int argc, char* argv[]) {
     int left_rank = (row_group.rank - 1 + nb_blocs) % nb_blocs;
     int right_rank = (row_group.rank + 1) % nb_blocs;
 
+    t1 = mytimer();
+
+    const int left_half = (local_ldnbngb - 1) / 2;
+
     /*if (grid_group.rank == 0) {
         printf("COORDS : %d, %d\n", grid_coords[0], grid_coords[1]);
         output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
@@ -188,31 +198,110 @@ int main(int argc, char* argv[]) {
         output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
     }*/
 
-    t1 = mytimer();
+    // Envoi & réception de la colonne de gauche
+    MPI_Send_init(&(cell(1, 1)), 1, col, left_rank, TAG_LEFT, row_group.comm, &left_sendr);
+    MPI_Recv_init(&(cell(local_ldboard - 1, 1)), 1, col, right_rank, TAG_LEFT, row_group.comm, &left_recvr);
+    // Envoi & réception de la colonne de droite
+    MPI_Send_init(&(cell(local_ldboard - 2, 1)), 1, col, right_rank, TAG_RIGHT, row_group.comm, &right_sendr);
+    MPI_Recv_init(&(cell(0, 1)), 1, col, left_rank, TAG_RIGHT, row_group.comm, &right_recvr);
+    // Envoi & réception de la ligne du haut
+    MPI_Send_init(&(cell(0, 1)), 1, row, top_rank, TAG_TOP, col_group.comm, &top_sendr);
+    MPI_Recv_init(&(cell(0, local_ldboard - 1)), 1, row, bottom_rank, TAG_TOP, col_group.comm, &top_recvr);
+    // Envoi & réception de la ligne du bas
+    MPI_Send_init(&(cell(0, local_ldboard - 2)), 1, row, bottom_rank, TAG_BOTTOM, col_group.comm, &bottom_sendr);
+    MPI_Recv_init(&(cell(0, 0)), 1, row, top_rank, TAG_BOTTOM, col_group.comm, &bottom_recvr);
 
     for (loop = 1 ; loop <= maxloop ; loop++) {
 
-        /// Echange des bordures
+        /// Echange des colonnes
 
-        // Envoi de la colonne de gauche
-        MPI_Sendrecv(&(cell(1, 1)), 1, col, left_rank, TAG, &(cell(local_ldboard - 1, 1)), 1, col, right_rank, TAG, row_group.comm, &status);
-        // Envoi de la colonne de droite
-        MPI_Sendrecv(&(cell(local_ldboard - 2, 1)), 1, col, right_rank, TAG, &(cell(0, 1)), 1, col, left_rank, TAG, row_group.comm, &status);
+        // Envoi & réception de la colonne de gauche
+        MPI_Start(&left_sendr);
+        MPI_Start(&left_recvr);
+        // Envoi & réception de la colonne de droite
+        MPI_Start(&right_sendr);
+        MPI_Start(&right_recvr);
 
-        // Envoi de la ligne du dessus
-        MPI_Sendrecv(&(cell(0, 1)), 1, row, top_rank, TAG, &(cell(0, local_ldboard - 1)), 1, row, bottom_rank, TAG, col_group.comm, &status);
-        // Envoi de la ligne du dessous
-        MPI_Sendrecv(&(cell(0, local_ldboard - 2)), 1, row, bottom_rank, TAG, &(cell(0, 0)), 1, row, top_rank, TAG, col_group.comm, &status);
+        /// CALCUL
 
-        /// Calcul du nombre de voisins
-
-        for (j = 1; j <= local_ldnbngb; j++) {
-            for (i = 1; i <= local_ldnbngb; i++) {
+        for (j = 2; j <= left_half; j++) {
+            for (i = 2; i <= local_ldnbngb - 1; i++) {
                 ngb( i, j ) =
                         cell( i-1, j-1 ) + cell( i, j-1 ) + cell( i+1, j-1 ) +
                         cell( i-1, j   ) +                  cell( i+1, j   ) +
                         cell( i-1, j+1 ) + cell( i, j+1 ) + cell( i+1, j+1 );
             }
+        }
+
+        /// Echange des lignes
+
+        MPI_Wait(&left_sendr, &status);
+        MPI_Wait(&left_recvr, &status);
+        MPI_Wait(&right_sendr, &status);
+        MPI_Wait(&right_recvr, &status);
+
+        // Envoi & réception de la ligne du haut
+        MPI_Start(&top_sendr);
+        MPI_Start(&top_recvr);
+        // Envoi & réception de la ligne du bas
+        MPI_Start(&bottom_sendr);
+        MPI_Start(&bottom_recvr);
+
+        /// CALCUL
+
+        for (j = left_half + 1; j <= local_ldnbngb - 1; j++) {
+            for (i = 2; i <= local_ldnbngb - 1; i++) {
+                ngb( i, j ) =
+                        cell( i-1, j-1 ) + cell( i, j-1 ) + cell( i+1, j-1 ) +
+                        cell( i-1, j   ) +                  cell( i+1, j   ) +
+                        cell( i-1, j+1 ) + cell( i, j+1 ) + cell( i+1, j+1 );
+            }
+        }
+
+        /// Réception des communications
+
+        MPI_Wait(&top_sendr, &status);
+        MPI_Wait(&top_recvr, &status);
+        MPI_Wait(&bottom_sendr, &status);
+        MPI_Wait(&bottom_recvr, &status);
+
+
+        /// Calcul du nombre de voisins
+
+        // Ligne du haut
+        j = 1;
+        for (i = 1; i <= local_ldnbngb; i++) {
+            ngb( i, j ) =
+                    cell( i-1, j-1 ) + cell( i, j-1 ) + cell( i+1, j-1 ) +
+                    cell( i-1, j   ) +                  cell( i+1, j   ) +
+                    cell( i-1, j+1 ) + cell( i, j+1 ) + cell( i+1, j+1 );
+        }
+
+        // Ligne du bas
+        j = local_ldnbngb;
+        for (i = 1; i <= local_ldnbngb; i++) {
+            ngb( i, j ) =
+                    cell( i-1, j-1 ) + cell( i, j-1 ) + cell( i+1, j-1 ) +
+                    cell( i-1, j   ) +                  cell( i+1, j   ) +
+                    cell( i-1, j+1 ) + cell( i, j+1 ) + cell( i+1, j+1 );
+        }
+
+        // Colonne de gauche
+        i = 1;
+        for (j = 2; j <= local_ldnbngb - 1; j++) {
+            ngb( i, j ) =
+                    cell( i-1, j-1 ) + cell( i, j-1 ) + cell( i+1, j-1 ) +
+                    cell( i-1, j   ) +                  cell( i+1, j   ) +
+                    cell( i-1, j+1 ) + cell( i, j+1 ) + cell( i+1, j+1 );
+        }
+
+        // Colonne de droite
+        i = local_ldnbngb;
+        for (j = 2; j <= local_ldnbngb - 1; j++) {
+            ngb( i, j ) =
+                    cell( i-1, j-1 ) + cell( i, j-1 ) + cell( i+1, j-1 ) +
+                    cell( i-1, j   ) +                  cell( i+1, j   ) +
+                    cell( i-1, j+1 ) + cell( i, j+1 ) + cell( i+1, j+1 );
         }
 
         /// Mise à jour des cellules
@@ -270,6 +359,15 @@ int main(int argc, char* argv[]) {
     MPI_Type_free(&row);
     MPI_Type_free(&col);
     MPI_Type_free(&rec_bloc);
+
+    MPI_Request_free(&left_sendr);
+    MPI_Request_free(&left_recvr);
+    MPI_Request_free(&right_sendr);
+    MPI_Request_free(&right_recvr);
+    MPI_Request_free(&top_sendr);
+    MPI_Request_free(&top_recvr);
+    MPI_Request_free(&bottom_sendr);
+    MPI_Request_free(&bottom_recvr);
 
     MPI_Comm_free(&(row_group.comm));
     MPI_Comm_free(&(col_group.comm));

@@ -131,7 +131,9 @@ int main(int argc, char* argv[]) {
         nbngb = calloc(BS * BS, sizeof(int));
 
         num_alive = generate_initial_board(BS, &board[ldboard + 1], ldboard);
-        output_board(BS+2, &board[0], ldboard, 0);
+        if (rendering) {
+            output_board(BS + 2, &board[0], ldboard, 0);
+        }
         printf("%d cells are alive\n", num_alive);
         printf("Starting number of living cells = %d\n", num_alive);
     }

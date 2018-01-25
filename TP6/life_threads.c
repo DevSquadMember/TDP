@@ -221,7 +221,9 @@ int main(int argc, char* argv[]) {
 	num_alive = generate_initial_board( BS, &(cell(1, 1)), ldboard );
 
     // Avec juste les "vraies" cellules: on commence à l'élément (1,1)
-    output_board(BS+2, &(cell(0, 0)), ldboard, 0);
+    if (rendering) {
+        output_board(BS + 2, &(cell(0, 0)), ldboard, 0);
+    }
     printf("%d cells are alive\n", num_alive);
 
 	printf("Starting number of living cells = %d\n", num_alive);
