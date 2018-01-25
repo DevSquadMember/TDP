@@ -25,7 +25,7 @@ void output_board(int N, int *board, int ldboard, int loop) {
 }
 
 /**
- * This function generates the iniatl board with one row and one
+ * This function generates the initial board with one row and one
  * column of living cells in the middle of the board
  */
 int generate_initial_board(int N, int *board, int ldboard) {

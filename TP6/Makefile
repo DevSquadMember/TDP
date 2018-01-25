@@ -64,10 +64,10 @@ threads: $(BUILD)/utils.o $(BUILD)/barrier.o
 	@gcc -Wno-deprecated $(BUILD)/utils.o $(BUILD)/barrier.o life_threads.c -o $(BUILD)/main_threads
 
 mpi_sync: $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o
-	@mpicc $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o life_mpi_sync.c -o $(BUILD)/main_mpi_sync
+	@mpicc -g -lm $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o life_mpi_sync.c -o $(BUILD)/main_mpi_sync
 
 run_seq: seq
-	@./$(BUILD/main_seq $(RUN_ARGS)
+	@./$(BUILD)/main_seq $(RUN_ARGS)
 
 run_omp: omp
 	@env OMP_NUM_THREADS=${NP} ./$(BUILD)/main_omp $(RUN_ARGS)
@@ -76,7 +76,7 @@ run_threads: threads
 	@./$(BUILD)/main_threads $(RUN_ARGS)
 
 run_mpi_sync: mpi_sync
-	@./$(BUILD)/main_mpi_sync $(RUN_ARGS)
+	@mpirun -np ${NP} $(BUILD)/main_mpi_sync $(RUN_ARGS)
 
 clean :
 	@rm -rf $(BUILD)/*.o

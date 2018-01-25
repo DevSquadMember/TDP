@@ -1,103 +1,191 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <semaphore.h>
-#include "barrier.h"
+#include <math.h>
 #include "utils.h"
+#include "utils-mpi.h"
 
 #define RENDERING 1
 
+#define TRUE 1
+#define FALSE 0
+
+#define TAG 0
+
 int BS;
 
-#define cell( _i_, _j_ ) board[ ldboard * (_j_) + (_i_) ]
-#define ngb( _i_, _j_ )  nbngb[ ldnbngb * ((_j_) - 1) + ((_i_) - 1 ) ]
+#define cell( _i_, _j_ ) local_board[ local_ldboard * (_j_) + (_i_) ]
+#define ngb( _i_, _j_ )  local_nbngb[ local_ldnbngb * ((_j_) - 1) + ((_i_) - 1 ) ]
 
 int rendering;
 
-int nb_threads;
-
-int* nums_alive; /* Tableau du nombre de cellules vivantes pour chaque thread */
-int ldboard, ldnbngb;
-int *board; /* Tableau du Plateau du jeu */
-int *nbngb; /* Tableau des compteurs de voisins array */
-
-int maxloop;
-
-struct barrier barrier_loop, barrier_ngb, barrier_sync, barrier_render;
-sem_t* left_sem;
-sem_t* right_sem;
-
-int compute_num_alive(int nb_threads) {
-    int num_alive = 0;
-    for (int i = 0 ; i < nb_threads ; i++) {
-        num_alive += nums_alive[i];
-    }
-    return num_alive;
+void end() {
+    MPI_Finalize();
 }
 
-void *thread_run(void* arg) {
-    int rank = (int)arg;
+int main(int argc, char* argv[]) {
+    int i, j, loop, num_alive, maxloop;
+    int ldboard;
+    int local_ldboard, local_ldnbngb;
+	double t1, t2;
+	double temps;
 
-    int nb_cols = BS/nb_threads;
-    int start_col = 1 + nb_cols * rank;
-    int last_col = start_col + nb_cols - 1;
+    int *board;
+    int *nbngb;
 
-    for (int loop = 1; loop <= maxloop; loop++) {
+    int *local_board;
+    int *local_nbngb;
 
-        /** RECOPIE DES BORDURES POUR CHAQUE THREAD **/
+    struct group world_group, grid_group, col_group, row_group;
+    int dimensions[2], periods[2], remain_dims[2], grid_coords[2];
+    int reorder;
 
-        // Chaque thread recopie les bordures pour ses colonnes
-        for (int i = start_col ; i <= last_col ; i++) {
-            // recopie du bas en haut
-            cell(i, 0) = cell(i, BS);
-            // recopie du haut en bas
-            cell(i, BS + 1) = cell(i, 1);
-        }
+    MPI_Status status;
+    MPI_Init(NULL, NULL);
 
-        if (rank == 0) {
-            cell(0, 0) = cell(BS, BS);
-            cell(0, BS + 1) = cell(BS, 1);
-            for (int i = 1 ; i <= BS ; i++) {
-                cell(0, i) = cell(BS, i);
-            }
-        } else if (rank == nb_threads - 1) {
-            for (int i = 1 ; i <= BS ; i++) {
-                cell(BS + 1, i) = cell(1, i);
-            }
-            cell(BS + 1, 0) = cell(1, BS);
-            cell(BS + 1, BS + 1) = cell(1, 1);
-        }
+    world_group.comm = MPI_COMM_WORLD;
+    init_group(&world_group);
 
-        /** FIN DE LA RECOPIE DES BORDURES POUR CHAQUE THREAD **/
+    int nb_blocs = (int) sqrt(world_group.size);
 
-        // Barrière de synchronisation
-        barrier_stop(&barrier_sync);
+    if (nb_blocs*nb_blocs != world_group.size) {
+        printf("> Impossible de dÃ©couper le plateau avec %d processeurs, %d n'est pas un carrÃ©\n", world_group.size, world_group.size);
+        end();
+        return EXIT_SUCCESS;
+    }
 
-        /** CALCUL DES CELLULES EN FONCTION DE SES VOISINS **/
+    // La grille des processeurs est de taille nb_procs*nb_procs
+    dimensions[0] = nb_blocs;
+    dimensions[1] = nb_blocs;
+    periods[0] = FALSE;
+    periods[1] = TRUE;
+    reorder = FALSE;
 
-        // Calcul de la première colonne
-        for (int j = 1; j <= BS; j++) {
-            ngb( start_col, j ) =
-                    cell( start_col-1, j-1 ) + cell( start_col, j-1 ) + cell( start_col+1, j-1 ) +
-                    cell( start_col-1, j   ) +                          cell( start_col+1, j   ) +
-                    cell( start_col-1, j+1 ) + cell( start_col, j+1 ) + cell( start_col+1, j+1 );
-        }
-        sem_post(&(left_sem[rank]));
+	rendering = RENDERING;
 
-        // Calcul de la dernière colonne
-        for (int j = 1; j <= BS; j++) {
-                ngb( last_col, j ) =
-                        cell( last_col-1, j-1 ) + cell( last_col, j-1 ) + cell( last_col+1, j-1 ) +
-                        cell( last_col-1, j   ) +                         cell( last_col+1, j   ) +
-                        cell( last_col-1, j+1 ) + cell( last_col, j+1 ) + cell( last_col+1, j+1 );
-        }
-        sem_post(&(right_sem[rank]));
+	if (argc < 3) {
+		printf("Usage: %s nb_iterations size [rendering=0/1]\n", argv[0]);
+		return EXIT_SUCCESS;
+	} else {
+		maxloop = atoi(argv[1]);
+		BS = atoi(argv[2]);
+		if (argc > 3) {
+			rendering = atoi(argv[3]);
+		}
+		//printf("Running MPI sync version, grid of size %d, %d iterations\n", BS, maxloop);
+	}
 
-        // Barrière de synchronisation pour le calcul des colonnes du bord
-        barrier_stop(&barrier_ngb);
+    if (BS % nb_blocs != 0) {
+        printf("> Impossible de dÃ©couper le plateau de %d de cÃ´tÃ© avec %d blocs-processeurs\n", BS, nb_blocs);
+        end();
+        return EXIT_SUCCESS;
+    }
 
-        for (int j = 1; j <= BS; j++) {
-            for (int i = start_col + 1 ; i < last_col ; i++) {
+    /** TOPOLOGIE CARTÃ‰SIENNE **/
+
+    // CrÃ©ation de la topologie cartÃ©sienne
+    if (MPI_Cart_create(MPI_COMM_WORLD, 2, dimensions, periods, reorder, &(grid_group.comm)) != MPI_SUCCESS) {
+        printf("Erreur pour grid_group\n");
+    }
+    init_group(&grid_group);
+
+    // Groupe pour la ligne
+    remain_dims[0] = 1;
+    remain_dims[1] = 0;
+    if (MPI_Cart_sub(grid_group.comm, remain_dims, &(row_group.comm)) != MPI_SUCCESS) {
+        printf("Erreur pour row_group\n");
+    }
+    init_group(&row_group);
+
+    // Groupe pour la colonne
+    remain_dims[0] = 0;
+    remain_dims[1] = 1;
+    if (MPI_Cart_sub(grid_group.comm, remain_dims, &(col_group.comm)) != MPI_SUCCESS) {
+        printf("Erreur pour col_group\n");
+    }
+    init_group(&col_group);
+
+    int sendcounts[grid_group.size];
+    int displs[grid_group.size];
+    int displs2[grid_group.size];
+
+    // RÃ©cupÃ©ration des coordonnÃ©es
+    MPI_Cart_coords(grid_group.comm, grid_group.rank, 2, grid_coords);
+
+    /** FIN TOPOLOGIE CARTÃ‰SIENNE **/
+
+    /* Leading dimension of the board array */
+	ldboard = BS + 2;
+
+    local_ldboard = BS/nb_blocs + 2;
+    local_ldnbngb = BS/nb_blocs;
+
+    // Le processeur 0 charge le plateau de jeu
+    if (grid_group.rank == 0) {
+        board = malloc(ldboard * ldboard * sizeof(int));
+        nbngb = malloc(BS * BS * sizeof(int));
+
+        num_alive = generate_initial_board(BS, &board[ldboard + 1], ldboard);
+        output_board(BS+2, &board[0], ldboard, 0);
+        printf("%d cells are alive\n", num_alive);
+        printf("Starting number of living cells = %d\n", num_alive);
+    }
+
+    local_board = malloc(local_ldboard * local_ldboard * sizeof(int));
+    local_nbngb = malloc(local_ldnbngb * local_ldnbngb * sizeof(int));
+
+    for (i = 0 ; i < grid_group.size ; i++) {
+        sendcounts[i] = 1;
+        displs[i] = i % nb_blocs * nb_blocs * (local_ldboard - 1) + i / nb_blocs;
+        displs2[i] = i % nb_blocs * nb_blocs * (local_ldboard - 2) + i / nb_blocs;
+    }
+
+    // DÃ©finition du bloc pour chaque processeur
+    MPI_Datatype bloc;
+    MPI_Type_vector(local_ldboard - 1, local_ldboard, ldboard, MPI_INT, &bloc);
+    MPI_Type_create_resized(bloc, 0, (local_ldboard - 2) * sizeof(int), &bloc);
+    MPI_Type_commit(&bloc);
+
+    MPI_Datatype row;
+    MPI_Type_contiguous(local_ldboard, MPI_INT, &row);
+    MPI_Type_commit(&row);
+
+    MPI_Datatype col;
+    MPI_Type_vector(local_ldboard - 2, 1, local_ldboard, MPI_INT, &col);
+    MPI_Type_commit(&col);
+
+    MPI_Datatype rec_bloc;
+    MPI_Type_vector(local_ldboard - 2, local_ldboard - 2, BS, MPI_INT, &rec_bloc);
+    MPI_Type_create_resized(rec_bloc, 0, (local_ldboard - 2) * sizeof(int), &rec_bloc);
+    MPI_Type_commit(&rec_bloc);
+
+    // Distribution des blocs sur les processeurs
+    MPI_Scatterv(board, sendcounts, displs, bloc, &(local_board[0]), local_ldboard * (local_ldboard - 1), MPI_INT, 0, grid_group.comm);
+
+    int top_rank = (col_group.rank - 1 + nb_blocs) % nb_blocs;
+    int bottom_rank = (col_group.rank + 1) % nb_blocs;
+    int left_rank = (row_group.rank - 1 + nb_blocs) % nb_blocs;
+    int right_rank = (row_group.rank + 1) % nb_blocs;
+
+    t1 = mytimer();
+
+    for (loop = 1 ; loop <= maxloop ; loop++) {
+
+        /// Echange des bordures
+
+        // Envoi de la colonne de gauche
+        MPI_Sendrecv(&(cell(1, 1)), 1, col, left_rank, TAG, &(cell(local_ldboard - 1, 1)), 1, col, right_rank, TAG, row_group.comm, &status);
+        // Envoi de la colonne de droite
+        MPI_Sendrecv(&(cell(local_ldboard - 2, 1)), 1, col, right_rank, TAG, &(cell(0, 1)), 1, col, left_rank, TAG, row_group.comm, &status);
+
+        // Envoi de la ligne du dessus
+        MPI_Sendrecv(&(cell(0, 1)), 1, row, top_rank, TAG, &(cell(0, local_ldboard - 1)), 1, row, bottom_rank, TAG, col_group.comm, &status);
+        // Envoi de la ligne du dessous
+        MPI_Sendrecv(&(cell(0, local_ldboard - 2)), 1, row, bottom_rank, TAG, &(cell(0, 0)), 1, row, top_rank, TAG, col_group.comm, &status);
+
+        /// Calcul du nombre de voisins
+
+        for (j = 1; j <= local_ldnbngb; j++) {
+            for (i = 1; i <= local_ldnbngb; i++) {
                 ngb( i, j ) =
                         cell( i-1, j-1 ) + cell( i, j-1 ) + cell( i+1, j-1 ) +
                         cell( i-1, j   ) +                  cell( i+1, j   ) +
@@ -105,12 +193,11 @@ void *thread_run(void* arg) {
             }
         }
 
-        /** FIN DU CALCUL DES CELLULES EN FONCTION DE SES VOISINS **/
+        /// Mise Ã  jour des cellules
 
-        nums_alive[rank] = 0;
-
-        for (int j = 1 ; j <= BS ; j++) {
-            for (int i = start_col + 1 ; i < last_col ; i++) {
+        num_alive = 0;
+        for (j = 1; j <= local_ldnbngb; j++) {
+            for (i = 1; i <= local_ldnbngb; i++) {
                 if ( (ngb( i, j ) < 2) ||
                      (ngb( i, j ) > 3) ) {
                     cell(i, j) = 0;
@@ -120,175 +207,72 @@ void *thread_run(void* arg) {
                         cell(i, j) = 1;
                 }
                 if (cell(i, j) == 1) {
-                    nums_alive[rank]++;
+                    num_alive ++;
                 }
             }
         }
-
-        // première colonne à mettre à jour
-        sem_wait(&(right_sem[rank - 1]));
-        for (int j = 1 ; j <= BS ; j++) {
-            if ( (ngb( start_col, j ) < 2) ||
-                 (ngb( start_col, j ) > 3) ) {
-                cell(start_col, j) = 0;
-            }
-            else {
-                if ((ngb( start_col, j )) == 3)
-                    cell(start_col, j) = 1;
-            }
-            if (cell(start_col, j) == 1) {
-                nums_alive[rank]++;
-            }
-        }
-        sem_post(&(right_sem[rank - 1]));
-
-        // dernière colonne à mettre à jour
-        sem_wait(&(left_sem[rank + 1]));
-        for (int j = 1 ; j <= BS ; j++) {
-            if ( (ngb( last_col, j ) < 2) ||
-                 (ngb( last_col, j ) > 3) ) {
-                cell(last_col, j) = 0;
-            }
-            else {
-                if ((ngb( last_col, j )) == 3)
-                    cell(last_col, j) = 1;
-            }
-            if (cell(last_col, j) == 1) {
-                nums_alive[rank]++;
-            }
-        }
-        sem_post(&(left_sem[rank + 1]));
-
-        if (rendering) {
-            barrier_stop(&barrier_render);
-            if (rank == 0) {
-                // Avec juste les "vraies" cellules: on commence à l'élément (1,1)
-                output_board(BS+2, &(cell(0, 0)), ldboard, loop);
-
-                int num_alive = compute_num_alive(nb_threads);
-                printf("%d cells are alive\n", num_alive);
-            }
-        }
-        sem_wait(&(right_sem[rank]));
-        sem_wait(&(left_sem[rank]));
-
-        barrier_stop(&barrier_loop);
     }
 
-    pthread_exit(NULL);
-}
-
-int main(int argc, char* argv[]) {
-	int i, num_alive;
-	double t1, t2;
-	double temps;
-    struct group world_group, grid_group, col_group, row_group;
-    int dimensions[2], periods[2], remain_dims[2], grid_coords[2];
-    int reorder;
-
-    perf_t start, stop, start_scatter, stop_scatter, start_calcul, stop_calcul, start_gather, stop_gather;
-
-    MPI_Status status;
-    MPI_Init(NULL, NULL);
-
-    world_group.comm = MPI_COMM_WORLD;
-    init_group(&world_group);
-
-    nb_blocs = (int) sqrt(world_group.size);
-
-    if (world_group.rank == 0) {
-        printf("> Lancement du calcul en parallèle sur %d processeurs\n", world_group.size);
-        printf("-- Début des calculs\n");
+    /*if (grid_group.rank == 0) {
+        printf("COORDS : %d, %d\n", grid_coords[0], grid_coords[1]);
+        output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
     }
-
-    if (nb_blocs*nb_blocs != world_group.size) {
-        printf("> Impossible de découper la matrice avec %d processeurs, %d n'est pas un carré\n", world_group.size, world_group.size);
-        end();
-        return EXIT_SUCCESS;
+    MPI_Barrier(grid_group.comm);
+    if (grid_group.rank == 1) {
+        printf("COORDS : %d, %d\n", grid_coords[0], grid_coords[1]);
+        output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
     }
-
-    // La grille/matrice est de taille nb_procs*nb_procs
-    dimensions[0] = nb_blocs;
-    dimensions[1] = nb_blocs;
-    periods[0] = FALSE;
-    periods[1] = TRUE;
-    reorder = FALSE;
-
-	rendering = RENDERING;
-
-	if (argc < 4) {
-		printf("Usage: %s nb_iterations size num_threads [rendering=0/1]\n", argv[0]);
-		return EXIT_SUCCESS;
-	} else {
-		maxloop = atoi(argv[1]);
-		BS = atoi(argv[2]);
-        nb_threads = atoi(argv[3]);
-		if (argc > 4) {
-			rendering = atoi(argv[4]);
-		}
-		//printf("Running sequential version, grid of size %d, %d iterations\n", BS, maxloop);
-	}
-
-    /** Création des threads **/
-    pthread_t threads[nb_threads];
-    int ranks[nb_threads];
-    nums_alive = malloc(sizeof(int) * nb_threads);
-    left_sem = malloc(sizeof(sem_t) * nb_threads);
-    right_sem = malloc(sizeof(sem_t) * nb_threads);
-    // Initialisation des barrières de synchronisation
-    barrier_init(&barrier_sync, nb_threads);
-    barrier_init(&barrier_ngb, nb_threads);
-    barrier_init(&barrier_loop, nb_threads);
-    barrier_init(&barrier_render, nb_threads);
-
-	/* Leading dimension of the board array */
-	ldboard = BS + 2;
-	/* Leading dimension of the neigbour counters array */
-	ldnbngb = BS;
-
-	board = malloc( ldboard * ldboard * sizeof(int) );
-	nbngb = malloc( ldnbngb * ldnbngb * sizeof(int) );
-
-	num_alive = generate_initial_board( BS, &(cell(1, 1)), ldboard );
-
-    // Avec juste les "vraies" cellules: on commence à l'élément (1,1)
-    output_board(BS+2, &(cell(0, 0)), ldboard, 0);
-    printf("%d cells are alive\n", num_alive);
-
-	printf("Starting number of living cells = %d\n", num_alive);
-    t1 = mytimer();
-
-    for (i = 0 ; i < nb_threads ; i++) {
-        sem_init(&(left_sem[i]), 0, 0);
-        sem_init(&(right_sem[i]), 0, 0);
+    MPI_Barrier(grid_group.comm);
+    if (grid_group.rank == 2) {
+        printf("COORDS : %d, %d\n", grid_coords[0], grid_coords[1]);
+        output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
     }
+    MPI_Barrier(grid_group.comm);
+    if (grid_group.rank == 3) {
+        printf("COORDS : %d, %d\n", grid_coords[0], grid_coords[1]);
+        output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
+    }*/
 
-    /** TRAVAIL DES THREADS **/
-    for (i = 0 ; i < nb_threads ; i++) {
-        ranks[i] = i;
-        pthread_create(&(threads[i]), NULL, thread_run, &ranks[i]);
-    }
-
-    // Attente des threads
-    for (i = 0 ; i < nb_threads ; i++) {
-        pthread_join(threads[i], NULL);
-    }
-
-	t2 = mytimer();
+    t2 = mytimer();
 	temps = t2 - t1;
-    num_alive = compute_num_alive(nb_threads);
-	printf("Final number of living cells = %d\n", num_alive);
-	printf("%.2lf\n",(double)temps * 1.e3);
 
-    barrier_free(&barrier_render);
-    barrier_free(&barrier_sync);
-    barrier_free(&barrier_ngb);
-    barrier_free(&barrier_loop);
-	free(board);
-	free(nbngb);
-    free(nums_alive);
-    free(left_sem);
-    free(right_sem);
+    for (j = 1; j <= local_ldnbngb; j++) {
+        for (i = 1; i <= local_ldnbngb; i++) {
+            ngb(i, j) = cell(i, j);
+        }
+    }
+
+    MPI_Gatherv(local_nbngb, local_ldnbngb * local_ldnbngb, MPI_INT, nbngb, sendcounts, displs2, rec_bloc, 0, grid_group.comm);
+
+    double max_time;
+    MPI_Reduce(&temps, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, grid_group.comm);
+
+    int total_alive;
+    MPI_Reduce(&num_alive, &total_alive, 1, MPI_INT, MPI_SUM, 0, grid_group.comm);
+
+    if (grid_group.rank == 0) {
+        if (rendering) {
+            output_board(BS, &nbngb[0], ldboard - 2, loop - 1);
+            printf("%d cells are alive\n", total_alive);
+        }
+        printf("Final number of living cells = %d\n", total_alive);
+        printf("%.2lf\n",(double)temps * 1.e3);
+        free(board);
+        free(nbngb);
+    }
+
+    free(local_board);
+    free(local_nbngb);
+
+    MPI_Type_free(&bloc);
+    MPI_Type_free(&row);
+    MPI_Type_free(&col);
+    MPI_Type_free(&rec_bloc);
+
+    MPI_Comm_free(&(row_group.comm));
+    MPI_Comm_free(&(col_group.comm));
+    MPI_Comm_free(&(grid_group.comm));
+    end();
 
 	return EXIT_SUCCESS;
 }
