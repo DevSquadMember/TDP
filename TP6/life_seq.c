@@ -137,10 +137,10 @@ int main(int argc, char* argv[]) {
 
         if (rendering) {
             /* Avec les celluls sur les bords (utile pour vérifier les comm MPI) */
-            output_board( BS+2, &(cell(0, 0)), ldboard, loop );
+            //output_board( BS+2, &(cell(0, 0)), ldboard, loop );
 
             /* Avec juste les "vraies" cellules: on commence à l'élément (1,1) */
-            //output_board(BS, &(cell(1, 1)), ldboard, loop);
+            output_board(BS, &(cell(1, 1)), ldboard, loop);
 
             printf("%d cells are alive\n", num_alive);
         }

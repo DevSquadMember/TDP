@@ -130,9 +130,6 @@ int main(int argc, char* argv[]) {
         }
         printf("%d cells are alive\n", num_alive);
         printf("Starting number of living cells = %d\n", num_alive);
-
-        printf("local_dboard : %d\n", local_ldboard);
-        printf("ldboard : %d\n", ldboard);
     }
 
     local_board = calloc(local_ldboard * local_ldboard, sizeof(int));
@@ -142,18 +139,12 @@ int main(int argc, char* argv[]) {
         sendcounts[i] = 1;
         displs[i] = i % nb_blocs * (local_ldboard - 2) * ldboard + (local_ldboard - 2) * ((int)(i / nb_blocs));
         displs2[i] = i % nb_blocs * nb_blocs * (local_ldboard - 2) + i / nb_blocs;
-
-        if (grid_group.rank == 0) {
-            //printf("i : %d, i%%nb_blocs : %d, i/nb_blocs : %d\n", i, i % nb_blocs, i / nb_blocs);
-            printf("displs[%d] = %d\n", i, displs[i]);
-        }
     }
 
     // Définition du bloc pour chaque processeur
     MPI_Datatype bloc;
     MPI_Type_vector(local_ldboard - 1, local_ldboard, ldboard, MPI_INT, &bloc);
-    //MPI_Type_create_resized(bloc, 0, (local_ldboard - 2) * sizeof(int), &bloc);
-    MPI_Type_create_resized(bloc, 0, (1) * sizeof(int), &bloc);
+    MPI_Type_create_resized(bloc, 0, sizeof(int), &bloc);
     MPI_Type_commit(&bloc);
 
     MPI_Datatype row;
@@ -177,13 +168,13 @@ int main(int argc, char* argv[]) {
     int left_rank = (row_group.rank - 1 + nb_blocs) % nb_blocs;
     int right_rank = (row_group.rank + 1) % nb_blocs;
 
-    for (i = 0 ; i < grid_group.size ; i++) {
+    /*for (i = 0 ; i < grid_group.size ; i++) {
         if (grid_group.rank == i) {
             printf("PROC %d - COORDS : %d, %d\n", i, grid_coords[0], grid_coords[1]);
             output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
         }
         MPI_Barrier(grid_group.comm);
-    }
+    }*/
 
     t1 = mytimer();
 
@@ -238,14 +229,6 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-    }
-
-    for (i = 0 ; i < grid_group.size ; i++) {
-        if (grid_group.rank == i) {
-            printf("PROC %d - COORDS : %d, %d\n", i, grid_coords[0], grid_coords[1]);
-            output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
-        }
-        MPI_Barrier(grid_group.comm);
     }
 
     t2 = mytimer();
