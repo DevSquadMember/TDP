@@ -153,6 +153,7 @@ void *thread_run(void* arg) {
 
         // dernière colonne à mettre à jour
         sem_wait(&(left_sem[rank + 1]));
+        printf("WAIT LEFT OK - %d\n", rank);
         for (int j = 1 ; j <= BS ; j++) {
             if ( (ngb( last_col, j ) < 2) ||
                  (ngb( last_col, j ) > 3) ) {
