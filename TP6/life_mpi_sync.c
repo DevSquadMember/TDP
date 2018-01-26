@@ -168,25 +168,13 @@ int main(int argc, char* argv[]) {
     int left_rank = (row_group.rank - 1 + nb_blocs) % nb_blocs;
     int right_rank = (row_group.rank + 1) % nb_blocs;
 
-    /*if (grid_group.rank == 0) {
-        printf("COORDS : %d, %d\n", grid_coords[0], grid_coords[1]);
-        output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
+    for (i = 0 ; i < grid_group.size ; i++) {
+        if (grid_group.rank == i) {
+            printf("PROC %d - COORDS : %d, %d\n", i, grid_coords[0], grid_coords[1]);
+            output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
+        }
+        MPI_Barrier(grid_group.comm);
     }
-    MPI_Barrier(grid_group.comm);
-    if (grid_group.rank == 1) {
-        printf("COORDS : %d, %d\n", grid_coords[0], grid_coords[1]);
-        output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
-    }
-    MPI_Barrier(grid_group.comm);
-    if (grid_group.rank == 2) {
-        printf("COORDS : %d, %d\n", grid_coords[0], grid_coords[1]);
-        output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
-    }
-    MPI_Barrier(grid_group.comm);
-    if (grid_group.rank == 3) {
-        printf("COORDS : %d, %d\n", grid_coords[0], grid_coords[1]);
-        output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
-    }*/
 
     t1 = mytimer();
 
@@ -215,6 +203,14 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        for (i = 0 ; i < grid_group.size ; i++) {
+            if (grid_group.rank == i) {
+                printf("PROC %d - COORDS : %d, %d\n", i, grid_coords[0], grid_coords[1]);
+                output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
+            }
+            MPI_Barrier(grid_group.comm);
+        }
+
         /// Mise à jour des cellules
 
         num_alive = 0;
@@ -235,12 +231,20 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    for (i = 0 ; i < grid_group.size ; i++) {
+        if (grid_group.rank == i) {
+            printf("PROC %d - COORDS : %d, %d\n", i, grid_coords[0], grid_coords[1]);
+            output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
+        }
+        MPI_Barrier(grid_group.comm);
+    }
+
     t2 = mytimer();
 	temps = t2 - t1;
 
     for (j = 1; j <= local_ldnbngb; j++) {
         for (i = 1; i <= local_ldnbngb; i++) {
-            ngb(i, j) = grid_group.rank;//cell(i, j);
+            ngb(i, j) = cell(i, j);
         }
     }
 
