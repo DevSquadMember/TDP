@@ -130,6 +130,8 @@ void *thread_run(void* arg) {
             }
         }
 
+        printf("WAIT RIGHT - %d\n", rank);
+
         // première colonne à mettre à jour
         sem_wait(&(right_sem[rank - 1]));
         for (int j = 1 ; j <= BS ; j++) {
@@ -146,6 +148,8 @@ void *thread_run(void* arg) {
             }
         }
         sem_post(&(right_sem[rank - 1]));
+
+        printf("WAIT LEFT - %d\n", rank);
 
         // dernière colonne à mettre à jour
         sem_wait(&(left_sem[rank + 1]));
