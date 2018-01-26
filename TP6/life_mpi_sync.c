@@ -139,6 +139,8 @@ int main(int argc, char* argv[]) {
         sendcounts[i] = 1;
         displs[i] = i % nb_blocs * nb_blocs * (local_ldboard - 1) + i / nb_blocs;
         displs2[i] = i % nb_blocs * nb_blocs * (local_ldboard - 2) + i / nb_blocs;
+
+        printf("displs[%d] = %d\n", i, displs[i]);
     }
 
     // Définition du bloc pour chaque processeur
