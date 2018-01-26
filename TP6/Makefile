@@ -61,7 +61,7 @@ omp:
 	@$(C_OMP) -fopenmp life_omp.c -o $(BUILD)/main_omp
 
 threads: $(BUILD)/utils.o $(BUILD)/barrier.o
-	@gcc -Wno-deprecated $(BUILD)/utils.o $(BUILD)/barrier.o life_threads.c -o $(BUILD)/main_threads
+	@gcc -Wno-deprecated -pthread $(BUILD)/utils.o $(BUILD)/barrier.o life_threads.c -o $(BUILD)/main_threads
 
 mpi_sync: $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o
 	@mpicc -g -lm $(BUILD)/utils.o $(BUILD)/barrier.o $(BUILD)/utils-mpi.o life_mpi_sync.c -o $(BUILD)/main_mpi_sync
