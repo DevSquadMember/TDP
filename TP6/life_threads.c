@@ -43,6 +43,7 @@ void *thread_run(void* arg) {
     int last_col = start_col + nb_cols - 1;
 
     for (int loop = 1; loop <= maxloop; loop++) {
+        printf("LOOP %d for rank %d\n", loop, rank);
 
         /** RECOPIE DES BORDURES POUR CHAQUE THREAD **/
 
@@ -70,6 +71,7 @@ void *thread_run(void* arg) {
 
         /** FIN DE LA RECOPIE DES BORDURES POUR CHAQUE THREAD **/
 
+        printf("BARRIER SYNC - %d\n", rank);
         // Barrière de synchronisation
         barrier_stop(&barrier_sync);
 
@@ -94,6 +96,7 @@ void *thread_run(void* arg) {
         sem_post(&(right_sem[rank]));
 
         // Barrière de synchronisation pour le calcul des colonnes du bord
+        printf("BARRIER STOP - %d\n", rank);
         barrier_stop(&barrier_ngb);
 
         for (int j = 1; j <= BS; j++) {
@@ -172,9 +175,11 @@ void *thread_run(void* arg) {
         sem_wait(&(right_sem[rank]));
         sem_wait(&(left_sem[rank]));
 
+        printf("BARRIER STOP - %d\n", rank);
         barrier_stop(&barrier_loop);
     }
 
+    printf("EXIT %d\n", rank);
     pthread_exit(NULL);
 }
 
