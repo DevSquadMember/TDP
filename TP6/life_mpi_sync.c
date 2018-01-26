@@ -130,6 +130,9 @@ int main(int argc, char* argv[]) {
         }
         printf("%d cells are alive\n", num_alive);
         printf("Starting number of living cells = %d\n", num_alive);
+
+        printf("local_dboard : %d\n", local_ldboard);
+        printf("ldboard : %d\n", ldboard);
     }
 
     local_board = calloc(local_ldboard * local_ldboard, sizeof(int));
@@ -141,6 +144,7 @@ int main(int argc, char* argv[]) {
         displs2[i] = i % nb_blocs * nb_blocs * (local_ldboard - 2) + i / nb_blocs;
 
         if (grid_group.rank == 0) {
+            printf("i : %d, i%%nb_blocs : %d, i/nb_blocs : %d\n", i, i % nb_blocs, i / nb_blocs);
             printf("displs[%d] = %d\n", i, displs[i]);
         }
     }
