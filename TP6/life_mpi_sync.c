@@ -140,13 +140,14 @@ int main(int argc, char* argv[]) {
         displs[i] = i % nb_blocs * nb_blocs * (local_ldboard - 1) + i / nb_blocs;
         displs2[i] = i % nb_blocs * nb_blocs * (local_ldboard - 2) + i / nb_blocs;
 
-        printf("displs[%d] = %d\n", i, displs[i]);
+        //printf("displs[%d] = %d\n", i, displs[i]);
     }
 
     // Définition du bloc pour chaque processeur
     MPI_Datatype bloc;
     MPI_Type_vector(local_ldboard - 1, local_ldboard, ldboard, MPI_INT, &bloc);
-    MPI_Type_create_resized(bloc, 0, (local_ldboard - 2) * sizeof(int), &bloc);
+    //MPI_Type_create_resized(bloc, 0, (local_ldboard - 2) * sizeof(int), &bloc);
+    MPI_Type_create_resized(bloc, 0, (local_ldboard) * sizeof(int), &bloc);
     MPI_Type_commit(&bloc);
 
     MPI_Datatype row;
