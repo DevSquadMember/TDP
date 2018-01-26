@@ -36,7 +36,7 @@ int compute_num_alive(int nb_threads) {
 }
 
 void *thread_run(void* arg) {
-    int rank = (int)arg;
+    int rank = *((int *)arg);
 
     int nb_cols = BS/nb_threads;
     int start_col = 1 + nb_cols * rank;
