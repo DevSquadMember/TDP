@@ -137,7 +137,7 @@ int main(int argc, char* argv[]) {
 
     for (i = 0 ; i < grid_group.size ; i++) {
         sendcounts[i] = 1;
-        displs[i] = i % nb_blocs * (local_ldboard - 2) * (ldboard - 1) + (local_ldboard - 1) * i / nb_blocs;
+        displs[i] = i % nb_blocs * (local_ldboard - 2) * ldboard + (local_ldboard - 2) * i / nb_blocs;
         displs2[i] = i % nb_blocs * nb_blocs * (local_ldboard - 2) + i / nb_blocs;
 
         if (grid_group.rank == 0) {
