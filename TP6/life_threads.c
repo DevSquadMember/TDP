@@ -204,6 +204,7 @@ int main(int argc, char* argv[]) {
     nums_alive = malloc(sizeof(int) * nb_threads);
     left_sem = malloc(sizeof(sem_t) * nb_threads);
     right_sem = malloc(sizeof(sem_t) * nb_threads);
+
     // Initialisation des barrières de synchronisation
     barrier_init(&barrier_sync, nb_threads);
     barrier_init(&barrier_ngb, nb_threads);
