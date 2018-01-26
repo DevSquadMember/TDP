@@ -203,14 +203,6 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        for (i = 0 ; i < grid_group.size ; i++) {
-            if (grid_group.rank == i) {
-                printf("PROC %d - COORDS : %d, %d\n", i, grid_coords[0], grid_coords[1]);
-                output_board(local_ldboard, &(cell(0, 0)), local_ldboard, 0);
-            }
-            MPI_Barrier(grid_group.comm);
-        }
-
         /// Mise à jour des cellules
 
         num_alive = 0;
