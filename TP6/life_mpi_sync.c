@@ -240,7 +240,7 @@ int main(int argc, char* argv[]) {
 
     for (j = 1; j <= local_ldnbngb; j++) {
         for (i = 1; i <= local_ldnbngb; i++) {
-            ngb(i, j) = cell(i, j);
+            ngb(i, j) = grid_group.rank;//cell(i, j);
         }
     }
 
