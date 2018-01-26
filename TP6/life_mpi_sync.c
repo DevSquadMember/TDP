@@ -140,11 +140,11 @@ int main(int argc, char* argv[]) {
 
     for (i = 0 ; i < grid_group.size ; i++) {
         sendcounts[i] = 1;
-        displs[i] = i % nb_blocs * (local_ldboard - 1) * ldboard + (local_ldboard - 2) * i / nb_blocs;
+        displs[i] = i % nb_blocs * (local_ldboard - 2) * ldboard + (local_ldboard - 2) * ((int)(i / nb_blocs));
         displs2[i] = i % nb_blocs * nb_blocs * (local_ldboard - 2) + i / nb_blocs;
 
         if (grid_group.rank == 0) {
-            printf("i : %d, i%%nb_blocs : %d, i/nb_blocs : %d\n", i, i % nb_blocs, i / nb_blocs);
+            //printf("i : %d, i%%nb_blocs : %d, i/nb_blocs : %d\n", i, i % nb_blocs, i / nb_blocs);
             printf("displs[%d] = %d\n", i, displs[i]);
         }
     }
