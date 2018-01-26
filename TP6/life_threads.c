@@ -74,6 +74,7 @@ void *thread_run(void* arg) {
         printf("BARRIER SYNC - %d\n", rank);
         // Barrière de synchronisation
         barrier_stop(&barrier_sync);
+        printf("OK for %d\n");
 
         /** CALCUL DES CELLULES EN FONCTION DE SES VOISINS **/
 
@@ -96,8 +97,9 @@ void *thread_run(void* arg) {
         sem_post(&(right_sem[rank]));
 
         // Barrière de synchronisation pour le calcul des colonnes du bord
-        printf("BARRIER STOP - %d\n", rank);
+        printf("BARRIER NGB - %d\n", rank);
         barrier_stop(&barrier_ngb);
+        printf("OK for %d\n");
 
         for (int j = 1; j <= BS; j++) {
             for (int i = start_col + 1 ; i < last_col ; i++) {
