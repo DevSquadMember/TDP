@@ -66,13 +66,14 @@ int main(int argc, char* argv[]) {
     int rendering = RENDERING;
 
     if (argc < 3) {
-        printf("Usage: %s nb_iterations size [rendering=0/1]\n", argv[0]);
+        printf("Usage: %s nb_iterations size num_threads [rendering=0/1]\n", argv[0]);
         return EXIT_SUCCESS;
     } else {
         maxloop = atoi(argv[1]);
         BS = atoi(argv[2]);
-        if (argc > 3) {
-            rendering = atoi(argv[3]);
+        omp_set_num_threads(atoi(argv[3]));
+        if (argc > 4) {
+            rendering = atoi(argv[4]);
         }
         //printf("Running sequential version, grid of size %d, %d iterations\n", BS, maxloop);
     }
